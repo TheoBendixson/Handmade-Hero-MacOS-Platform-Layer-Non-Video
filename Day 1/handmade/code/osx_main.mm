@@ -3,7 +3,7 @@
 //
 // OSX Main
 
-#include <iostream>
+#include "stdio.h"
 
 int main(int argc, const char * argv[]) {
     printf("Handmade Hero Finished Running");
