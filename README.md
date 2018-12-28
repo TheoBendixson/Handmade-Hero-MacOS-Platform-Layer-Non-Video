@@ -6,7 +6,7 @@ This is a code repository designed to accompany my [Medium series on setting up 
 
 I plan to follow the series, making articles and videos as if Casey had started development on a Mac instead of a P.C. My goal is to make it easier for Mac users to learn from Handmade Hero without having to go buy a P.C. just to start in.
 
-Eventually, this series will find its natural end and (I hope) seamlessly tie into the rest of the Handmade Hero series. Once most of the work in the initial platform layer is complete, and the tutorials spend the majority of their time in the game's cross-platform C++ source code, I will consider my job done and probably go drink a beer or take a few laps through the terrain park.
+Eventually, this series will find its natural end and (I hope) seamlessly tie into the rest of the [Handmade Hero series](https://www.youtube.com/user/handmadeheroarchive). Once most of the work in the initial platform layer is complete, and the tutorials spend the majority of their time in the game's cross-platform C++ source code, I will consider my job done and probably go drink a beer or take a few laps through the terrain park.
 
 ## How is it organized?
 As I follow each day, I plan to commit the source code to folders named after each day in the series. 
