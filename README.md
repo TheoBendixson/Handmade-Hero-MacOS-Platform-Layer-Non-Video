@@ -24,3 +24,7 @@ I really want you to [support Casey's work by going and preordering the game](ht
 Many of the ideas employed in this series and code repository come from [Jeff Buck's Handmade Hero OSX port](https://github.com/itfrombit/osx_handmade). Not much of what I'm doing is all that original. I'm playing the messenger and distilling what he's done into a series that is easy to follow for beginners.
 
 Jeff's code is great if you want to dive right into this project and figure it for yourself. I can't say when I'll have all of the tutorials finished, so if you want to see what this will probably look like when it's all done, it's a fantastic resource.
+
+And of course, many thanks to Casey for opening my mind to a new way to build apps and games.
+
+If you haven't already, check out [Handmade Hero on YouTube](https://www.youtube.com/user/handmadeheroarchive).
