@@ -25,38 +25,49 @@ global_variable float GlobalRenderHeight = 768;
 
 global_variable bool Running = true;
 global_variable uint8 *buffer;
+global_variable int bitmapWidth;
+global_variable int bitmapHeight;
+global_variable int bytesPerPixel = 4;
+global_variable size_t pitch;
+
 global_variable int offsetX = 0;
 
-void renderGradient(NSWindow* window) {
+void refreshBuffer(NSWindow *window) {
 
     if(buffer) {
         free(buffer);
     }
 
-    size_t width = window.contentView.bounds.size.width;
-    size_t height = window.contentView.bounds.size.height;
+    bitmapWidth = window.contentView.bounds.size.width;
+    bitmapHeight = window.contentView.bounds.size.height;
 
-    int bytesPerPixel = 4;
-
-    size_t pitch = width * bytesPerPixel;
-    buffer = (uint8 *)malloc(pitch * height);
+    bytesPerPixel = 4;
+    pitch = bitmapWidth * bytesPerPixel;
+    buffer = (uint8 *)malloc(pitch * bitmapHeight);
 
     NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:&buffer
-						      pixelsWide: width
-						      pixelsHigh: height
-						      bitsPerSample: 8
-						      samplesPerPixel: 4
-						      hasAlpha: YES
-						      isPlanar: NO
-						      colorSpaceName: NSDeviceRGBColorSpace
-						      bytesPerRow: pitch
-						      bitsPerPixel: bytesPerPixel * 8];
+                              pixelsWide: bitmapWidth
+                              pixelsHigh: bitmapHeight
+                              bitsPerSample: 8
+                              samplesPerPixel: 4
+                              hasAlpha: YES
+                              isPlanar: NO
+                              colorSpaceName: NSDeviceRGBColorSpace
+                              bytesPerRow: pitch
+                              bitsPerPixel: bytesPerPixel * 8];
 
-    NSImage *image = [[NSImage alloc] initWithSize: NSMakeSize(width, height)];
+    NSImage *image = [[NSImage alloc] initWithSize: NSMakeSize(bitmapWidth, bitmapHeight)];
     [image addRepresentation: rep];
-
-    window.contentView.wantsLayer = YES;
     window.contentView.layer.contents = image;
+   
+    [rep release];
+    [image release];
+}
+
+void renderWeirdGradient() {
+
+    int width = bitmapWidth;
+    int height = bitmapHeight;
 
     uint8 *row = (uint8 *)buffer;
 
@@ -77,11 +88,11 @@ void renderGradient(NSWindow* window) {
             ++pixel;  
 
             //Green
-            *pixel = y;
+            *pixel = (uint8)y;
             ++pixel;
 
             //Blue
-            *pixel = x+offsetX;
+            *pixel = (uint8)x+(uint8)offsetX;
             ++pixel;
 
             //Alpha
@@ -92,8 +103,6 @@ void renderGradient(NSWindow* window) {
         row+= pitch;
     }
 
-    [rep release];
-    [image release];
 }
 
 @interface HandmadeMainWindowDelegate: NSObject<NSWindowDelegate>
@@ -107,7 +116,8 @@ void renderGradient(NSWindow* window) {
 
 - (void)windowDidResize:(NSNotification *)notification {
     NSWindow *window = (NSWindow*)notification.object;
-    renderGradient(window);
+    refreshBuffer(window);
+    renderWeirdGradient();
 }
 
 @end
@@ -139,7 +149,8 @@ int main(int argc, const char * argv[]) {
     
     while(Running) {
     
-	    renderGradient(window);
+        refreshBuffer(window); 
+        renderWeirdGradient();
 
         offsetX++;
         
