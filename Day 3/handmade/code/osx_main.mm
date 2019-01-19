@@ -6,19 +6,26 @@
 #include <stdio.h>
 #include <AppKit/AppKit.h>
 
-static float GlobalRenderWidth = 1024;
-static float GlobalRenderHeight = 768;
+#define internal static
+#define local_persist static
+#define global_variable static
 
-static bool Running = true;
-static uint8_t *buffer;
-static int offsetX = 0;
+typedef int8_t int8;
+typedef int16_t int16;
+typedef int32_t int32;
+typedef int64_t int64;
 
-typedef struct {
-    uint8_t red;
-    uint8_t green;
-    uint8_t blue;
-    uint8_t alpha;
-} Pixel;
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
+
+global_variable float GlobalRenderWidth = 1024;
+global_variable float GlobalRenderHeight = 768;
+
+global_variable bool Running = true;
+global_variable uint8 *buffer;
+global_variable int offsetX = 0;
 
 void renderGradient(NSWindow* window) {
 
@@ -29,8 +36,10 @@ void renderGradient(NSWindow* window) {
     size_t width = window.contentView.bounds.size.width;
     size_t height = window.contentView.bounds.size.height;
 
-    size_t pitch = width * sizeof(Pixel);
-    buffer = (uint8_t *)malloc(pitch * height);
+    int bytesPerPixel = 4;
+
+    size_t pitch = width * bytesPerPixel;
+    buffer = (uint8 *)malloc(pitch * height);
 
     NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:&buffer
 						      pixelsWide: width
@@ -41,7 +50,7 @@ void renderGradient(NSWindow* window) {
 						      isPlanar: NO
 						      colorSpaceName: NSDeviceRGBColorSpace
 						      bytesPerRow: pitch
-						      bitsPerPixel: sizeof(Pixel) * 8];
+						      bitsPerPixel: bytesPerPixel * 8];
 
     NSImage *image = [[NSImage alloc] initWithSize: NSMakeSize(width, height)];
     [image addRepresentation: rep];
@@ -49,12 +58,38 @@ void renderGradient(NSWindow* window) {
     window.contentView.wantsLayer = YES;
     window.contentView.layer.contents = image;
 
-    for ( size_t y = 0; y < height; ++y) {
-        Pixel *row = (Pixel *)(buffer + y * pitch);
-        for(size_t x = 0; x < width; ++x) {
-            Pixel color = { .red=0, .green=y, .blue=x+offsetX, .alpha=255 };
-            row[x] = color;
+    uint8 *row = (uint8 *)buffer;
+
+    for ( int y = 0; y < height; ++y) {
+
+        uint8 *pixel = (uint8 *)row;
+
+        for(int x = 0; x < width; ++x) {
+            
+            /*
+                Pixel in memory: RR GG BB AA
+                
+
+            */
+
+            //Red            
+            *pixel = 0; 
+            ++pixel;  
+
+            //Green
+            *pixel = y;
+            ++pixel;
+
+            //Blue
+            *pixel = x+offsetX;
+            ++pixel;
+
+            //Alpha
+            *pixel = 255;
+            ++pixel;          
         }
+
+        row+= pitch;
     }
 
     [rep release];
@@ -96,7 +131,7 @@ int main(int argc, const char * argv[]) {
                          backing:NSBackingStoreBuffered
                          defer:NO];    
 
-    [window setBackgroundColor: NSColor.redColor];
+    [window setBackgroundColor: NSColor.blackColor];
     [window setTitle: @"Handmade Hero"];
     [window makeKeyAndOrderFront: nil];
     [window setDelegate: mainWindowDelegate];
