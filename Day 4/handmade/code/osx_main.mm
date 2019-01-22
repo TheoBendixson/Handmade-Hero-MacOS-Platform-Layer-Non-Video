@@ -98,7 +98,7 @@ void renderWeirdGradient() {
             ++pixel;          
         }
 
-        row+= pitch;
+        row += pitch;
     }
 
 }

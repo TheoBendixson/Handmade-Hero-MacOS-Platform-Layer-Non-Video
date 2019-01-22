@@ -38,12 +38,12 @@ int main(int argc, const char * argv[]) {
                                      globalRenderHeight);
     
     NSWindow *window = [[NSWindow alloc] initWithContentRect:initialFrame
-					 styleMask: NSWindowStyleMaskTitled |
-						    NSWindowStyleMaskClosable |
-						    NSWindowStyleMaskMiniaturizable |
-						    NSWindowStyleMaskResizable 
-					 backing:NSBackingStoreBuffered
-					 defer:NO];    
+                             styleMask: NSWindowStyleMaskTitled |
+                                        NSWindowStyleMaskClosable |
+                                        NSWindowStyleMaskMiniaturizable |
+                                        NSWindowStyleMaskResizable 
+                             backing:NSBackingStoreBuffered
+                             defer:NO];    
 
     [window setBackgroundColor: NSColor.redColor];
     [window setTitle: @"Handmade Hero"];
