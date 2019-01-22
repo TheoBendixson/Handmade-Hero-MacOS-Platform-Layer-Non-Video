@@ -23,7 +23,7 @@ typedef uint64_t uint64;
 global_variable float GlobalRenderWidth = 1024;
 global_variable float GlobalRenderHeight = 768;
 
-global_variable bool Running = true;
+global_variable bool running = true;
 global_variable uint8 *buffer;
 global_variable int bitmapWidth;
 global_variable int bitmapHeight;
@@ -45,23 +45,23 @@ void refreshBuffer(NSWindow *window) {
     pitch = bitmapWidth * bytesPerPixel;
     buffer = (uint8 *)malloc(pitch * bitmapHeight);
 
-    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:&buffer
-                              pixelsWide: bitmapWidth
-                              pixelsHigh: bitmapHeight
-                              bitsPerSample: 8
-                              samplesPerPixel: 4
-                              hasAlpha: YES
-                              isPlanar: NO
-                              colorSpaceName: NSDeviceRGBColorSpace
-                              bytesPerRow: pitch
-                              bitsPerPixel: bytesPerPixel * 8];
+    @autoreleasepool {
+        NSBitmapImageRep *rep = [[[NSBitmapImageRep alloc] initWithBitmapDataPlanes: &buffer 
+                                  pixelsWide: bitmapWidth
+                                  pixelsHigh: bitmapHeight
+                                  bitsPerSample: 8
+                                  samplesPerPixel: 4
+                                  hasAlpha: YES
+                                  isPlanar: NO
+                                  colorSpaceName: NSDeviceRGBColorSpace
+                                  bytesPerRow: pitch
+                                  bitsPerPixel: bytesPerPixel * 8] autorelease];
 
-    NSImage *image = [[NSImage alloc] initWithSize: NSMakeSize(bitmapWidth, bitmapHeight)];
-    [image addRepresentation: rep];
-    window.contentView.layer.contents = image;
-   
-    [rep release];
-    [image release];
+        NSSize imageSize = NSMakeSize(bitmapWidth, bitmapHeight);
+        NSImage *image = [[[NSImage alloc] initWithSize: imageSize] autorelease];
+        [image addRepresentation: rep];
+        window.contentView.layer.contents = image;
+    }
 }
 
 void renderWeirdGradient() {
@@ -79,8 +79,6 @@ void renderWeirdGradient() {
             
             /*
                 Pixel in memory: RR GG BB AA
-                
-
             */
 
             //Red            
@@ -111,7 +109,7 @@ void renderWeirdGradient() {
 @implementation HandmadeMainWindowDelegate 
 
 - (void)windowWillClose:(id)sender {
-    Running = false;  
+    running = false;  
 }
 
 - (void)windowDidResize:(NSNotification *)notification {
@@ -147,7 +145,7 @@ int main(int argc, const char * argv[]) {
     [window setDelegate: mainWindowDelegate];
     window.contentView.wantsLayer = YES;
     
-    while(Running) {
+    while(running) {
     
         refreshBuffer(window); 
         renderWeirdGradient();
