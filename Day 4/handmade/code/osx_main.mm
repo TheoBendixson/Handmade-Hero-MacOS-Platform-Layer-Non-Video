@@ -32,7 +32,7 @@ global_variable size_t pitch;
 
 global_variable int offsetX = 0;
 
-void refreshBuffer(NSWindow *window) {
+void drawBufferToWindow(NSWindow *window) {
     @autoreleasepool {
         NSBitmapImageRep *rep = [[[NSBitmapImageRep alloc] initWithBitmapDataPlanes: &buffer 
                                   pixelsWide: bitmapWidth
@@ -50,6 +50,20 @@ void refreshBuffer(NSWindow *window) {
         [image addRepresentation: rep];
         window.contentView.layer.contents = image;
     }
+}
+
+void refreshBuffer(NSWindow *window) {
+
+    if (buffer) {
+        free(buffer);
+    }
+
+    bitmapWidth = window.contentView.bounds.size.width;
+    bitmapHeight = window.contentView.bounds.size.height;
+
+    bytesPerPixel = 4;
+    pitch = bitmapWidth * bytesPerPixel;
+    buffer = (uint8 *)malloc(pitch * bitmapHeight);
 }
 
 void renderWeirdGradient() {
@@ -103,6 +117,7 @@ void renderWeirdGradient() {
 - (void)windowDidResize:(NSNotification *)notification {
     NSWindow *window = (NSWindow*)notification.object;
     refreshBuffer(window);
+    drawBufferToWindow(window);
     renderWeirdGradient();
 }
 
@@ -141,8 +156,8 @@ int main(int argc, const char * argv[]) {
     buffer = (uint8 *)malloc(pitch * bitmapHeight);
  
     while(running) {
-    
-        refreshBuffer(window); 
+   
+        drawBufferToWindow(window); 
         renderWeirdGradient();
 
         offsetX++;
