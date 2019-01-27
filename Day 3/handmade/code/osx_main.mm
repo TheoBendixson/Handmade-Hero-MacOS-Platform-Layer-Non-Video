@@ -53,7 +53,7 @@ int main(int argc, const char * argv[]) {
     int bitmapWidth = window.contentView.bounds.size.width;
     int bitmapHeight = window.contentView.bounds.size.height;
     int bytesPerPixel = 4;
-    size_t pitch = bitmapWidth * bytesPerPixel;
+    int pitch = bitmapWidth * bytesPerPixel;
     buffer = (uint8_t *)malloc(pitch * bitmapHeight);
 
     while(running) {
