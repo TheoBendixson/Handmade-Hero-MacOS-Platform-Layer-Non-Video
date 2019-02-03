@@ -32,7 +32,7 @@ global_variable int pitch;
 
 global_variable int offsetX = 0;
 
-void refreshBuffer(NSWindow *window) {
+void macOSRefreshBuffer(NSWindow *window) {
 
     if (buffer) {
         free(buffer);
@@ -81,7 +81,7 @@ void renderWeirdGradient() {
 
 }
 
-void drawBufferToWindow(NSWindow *window) {
+void macOSRedrawBuffer(NSWindow *window) {
     @autoreleasepool {
         NSBitmapImageRep *rep = [[[NSBitmapImageRep alloc] initWithBitmapDataPlanes: &buffer 
                                   pixelsWide: bitmapWidth
@@ -112,9 +112,9 @@ void drawBufferToWindow(NSWindow *window) {
 
 - (void)windowDidResize:(NSNotification *)notification {
     NSWindow *window = (NSWindow*)notification.object;
-    refreshBuffer(window);
+    macOSRefreshBuffer(window);
     renderWeirdGradient();
-    drawBufferToWindow(window);
+    macOSRedrawBuffer(window);
 }
 
 @end
@@ -145,12 +145,12 @@ int main(int argc, const char * argv[]) {
     [window setDelegate: mainWindowDelegate];
     window.contentView.wantsLayer = YES;
    
-    refreshBuffer(window);
+    macOSRefreshBuffer(window);
  
     while(running) {
    
         renderWeirdGradient();
-        drawBufferToWindow(window); 
+        macOSRedrawBuffer(window); 
 
         offsetX++;
         

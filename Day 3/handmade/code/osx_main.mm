@@ -49,6 +49,7 @@ int main(int argc, const char * argv[]) {
     [window setTitle: @"Handmade Hero"];
     [window makeKeyAndOrderFront: nil];
     [window setDelegate: mainWindowDelegate];
+    window.contentView.wantsLayer = YES;
 
     int bitmapWidth = window.contentView.bounds.size.width;
     int bitmapHeight = window.contentView.bounds.size.height;
