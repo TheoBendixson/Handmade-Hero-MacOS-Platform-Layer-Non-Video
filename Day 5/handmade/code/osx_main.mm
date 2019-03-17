@@ -3,11 +3,11 @@
 //
 // OSX Main
 
-#include <stdio.h>
-#include <AppKit/AppKit.h>
 #include "handmade_types.h"
 #include "osx_main.h"
-#import "osx_handmade_main_window_delegate.h"
+#include "osx_handmade_main_window_delegate.h"
+
+#include <AppKit/AppKit.h>
 
 global_variable float globalRenderWidth = 1024;
 global_variable float globalRenderHeight = 768;
