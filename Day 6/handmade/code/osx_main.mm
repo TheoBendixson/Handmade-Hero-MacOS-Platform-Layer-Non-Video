@@ -125,7 +125,15 @@ int main(int argc, const char * argv[]) {
         renderWeirdGradient();
         macOSRedrawBuffer(window); 
 
-        offsetX++;
+        NSArray *controllers = [OSXHandmadeController controllers];
+
+        if(controllers != nil && controllers.count > 0){
+            OSXHandmadeController *controller = (OSXHandmadeController *)[controllers objectAtIndex: 0];
+            if(controller != nil &&
+               controller.buttonAState == true) {
+                offsetX++;       
+            }
+        }
 
         NSEvent* Event;
         

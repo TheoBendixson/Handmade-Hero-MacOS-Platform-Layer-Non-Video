@@ -2,7 +2,7 @@
 #include <IOKit/hid/IOHIDLib.h>
 
 static IOHIDManagerRef HIDManager = NULL;
-static NSMutableArray *controllers = nil;
+static NSMutableArray *connectedControllers = nil;
 
 const float deadZonePercent = 0.2f;
 
@@ -28,14 +28,12 @@ const float deadZonePercent = 0.2f;
 	CFIndex _buttonYUsageID;
 	CFIndex _lShoulderUsageID;
 	CFIndex _rShoulderUsageID;
-
-    CFIndex _buttonAState;
 }
 
 + (void)initialize {
 
     HIDManager = IOHIDManagerCreate(kCFAllocatorDefault, 0);
-    controllers = [NSMutableArray array];
+    connectedControllers = [NSMutableArray array];
 
     if (IOHIDManagerOpen(HIDManager, kIOHIDOptionsTypeNone) != kIOReturnSuccess) {
         NSLog(@"Error Initializing OSX Handmade Controllers");
@@ -63,6 +61,10 @@ const float deadZonePercent = 0.2f;
 	
 	NSLog(@"CCController initialized.");
 
+}
+
++ (NSArray *)controllers {
+    return connectedControllers;
 }
 
 static void
@@ -104,7 +106,9 @@ controllerConnected(void *context, IOReturn result, void *sender, IOHIDDeviceRef
         IOHIDDeviceSetInputValueMatchingMultiple(device, (__bridge CFArrayRef)@[
 			@{@(kIOHIDElementUsagePageKey): @(kHIDPage_GenericDesktop)},
 			@{@(kIOHIDElementUsagePageKey): @(kHIDPage_Button)},
-        ]); 
+        ]);
+
+        [connectedControllers addObject: controller]; 
     }
 }
 
@@ -116,7 +120,15 @@ static void ControllerInput(void *context, IOReturn result, void *sender, IOHIDV
         OSXHandmadeController *controller = (__bridge OSXHandmadeController *)context;
         
         IOHIDElementRef element = IOHIDValueGetElement(value);
+        
+        uint32_t usagePage = IOHIDElementGetUsagePage(element);
+        uint32_t usage = IOHIDElementGetUsage(element);
 
+        CFIndex state = (int)IOHIDValueGetIntegerValue(value);
+
+        if(usagePage == kHIDPage_Button) {
+            if(usage == controller->_buttonAUsageID) { controller->_buttonAState = state; }
+        }
     }
 
 }
