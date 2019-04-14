@@ -128,6 +128,11 @@ static void ControllerInput(void *context, IOReturn result, void *sender, IOHIDV
 
         if(usagePage == kHIDPage_Button) {
             if(usage == controller->_buttonAUsageID) { controller->_buttonAState = state; }
+            if(usage == controller->_buttonBUsageID) { controller->_buttonBState = state; }
+            if(usage == controller->_buttonXUsageID) { controller->_buttonXState = state; }
+            if(usage == controller->_buttonYUsageID) { controller->_buttonYState = state; }
+            if(usage == controller->_lShoulderUsageID) { controller->_buttonLeftShoulderState = state; }
+            if(usage == controller->_rShoulderUsageID) { controller->_buttonRightShoulderState = state; }
         }
     }
 
