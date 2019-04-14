@@ -20,6 +20,7 @@ global_variable int bytesPerPixel = 4;
 global_variable int pitch;
 
 global_variable int offsetX = 0;
+global_variable int offsetY = 0;
 
 void macOSRefreshBuffer(NSWindow *window) {
 
@@ -53,7 +54,7 @@ void renderWeirdGradient() {
             ++pixel;  
 
             //Green
-            *pixel = (uint8)y;
+            *pixel = (uint8)y+(uint8)offsetY;
             ++pixel;
 
             //Blue
@@ -133,6 +134,25 @@ int main(int argc, const char * argv[]) {
                controller.buttonAState == true) {
                 offsetX++;       
             }
+            
+            if(controller != nil) {
+                if (controller.dpadX == 1) {
+                    offsetX++;
+                }
+
+                if (controller.dpadX == -1) {
+                    offsetX--;
+                }
+
+                if (controller.dpadY == 1) {
+                    offsetY++;
+                }
+
+                if (controller.dpadY == -1) {
+                    offsetY--;
+                }
+            }
+
         }
 
         NSEvent* Event;

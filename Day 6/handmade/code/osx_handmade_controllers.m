@@ -134,6 +134,33 @@ static void ControllerInput(void *context, IOReturn result, void *sender, IOHIDV
             if(usage == controller->_lShoulderUsageID) { controller->_buttonLeftShoulderState = state; }
             if(usage == controller->_rShoulderUsageID) { controller->_buttonRightShoulderState = state; }
         }
+
+        if(usagePage == kHIDPage_GenericDesktop) {
+        
+            if(controller->_usesHatSwitch && usage == kHIDUsage_GD_Hatswitch) {
+
+                NSInteger dpadX = 0;
+                NSInteger dpadY = 0;
+
+                switch(state) {
+
+
+                    case 0: dpadX = 0; dpadY = 1; break;
+                    case 1: dpadX = 1; dpadY = 1; break;
+                    case 2: dpadX = 1; dpadY = 0; break;
+                    case 3: dpadX = 1; dpadY = -1; break;
+                    case 4: dpadX = 0; dpadY = -1; break;
+                    case 5: dpadX = -1; dpadY = -1; break;
+                    case 6: dpadX = -1; dpadY = 0; break;
+                    case 7: dpadX = -1; dpadY = 1; break;
+                    default: dpadX = 0; dpadY = 0; break;
+
+                }
+
+                controller->_dpadX = dpadX;
+                controller->_dpadY = dpadY; 
+            }
+        }
     }
 
 }
