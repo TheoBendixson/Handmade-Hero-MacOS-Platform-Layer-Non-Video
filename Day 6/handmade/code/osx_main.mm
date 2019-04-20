@@ -101,7 +101,7 @@ int main(int argc, const char * argv[]) {
                                      (screenRect.size.height - globalRenderHeight) * 0.5,
                                      globalRenderWidth,
                                      globalRenderHeight);
-    
+  
     NSWindow *window = [[NSWindow alloc] 
                          initWithContentRect: initialFrame
                          styleMask: NSWindowStyleMaskTitled |
@@ -111,12 +111,20 @@ int main(int argc, const char * argv[]) {
                          backing: NSBackingStoreBuffered
                          defer: NO];    
 
+    [NSApp activateIgnoringOtherApps: true];
+
     [window setBackgroundColor: NSColor.blackColor];
     [window setTitle: @"Handmade Hero"];
     [window makeKeyAndOrderFront: nil];
     [window setDelegate: mainWindowDelegate];
     window.contentView.wantsLayer = YES;
-   
+
+    if(window.keyWindow == true) {
+        NSLog(@"Window is key");
+    } else {
+        NSLog(@"Window is not key");
+    }
+ 
     macOSRefreshBuffer(window);
 
     [OSXHandmadeController initialize];
@@ -155,19 +163,29 @@ int main(int argc, const char * argv[]) {
 
         }
 
-        NSEvent* Event;
+        NSEvent* event;
         
         do {
-            Event = [NSApp nextEventMatchingMask: NSEventMaskAny
+            event = [NSApp nextEventMatchingMask: NSEventMaskAny
                                        untilDate: nil
                                           inMode: NSDefaultRunLoopMode
                                          dequeue: YES];
             
-            switch ([Event type]) {
+            switch ([event type]) {
+                
+                case NSEventTypeKeyDown:
+                    
+                    if (event.keyCode == 0x7B) {
+                        printf("Left Arrow");
+                        offsetX--;
+                    } 
+
+                break;
+
                 default:
-                    [NSApp sendEvent: Event];
+                    [NSApp sendEvent: event];
             }
-        } while (Event != nil);
+        } while (event != nil);
     }
     
     printf("Handmade Finished Running");

@@ -11,4 +11,5 @@ OSX_TARGET_INCLUDES="${HANDMADE_CODE_PATH}osx_main.mm
 mkdir ../../build
 pushd ../../build
 clang -g $OSX_LD_FLAGS -o handmade $OSX_TARGET_INCLUDES 
+cp handmade handmade.app
 popd
