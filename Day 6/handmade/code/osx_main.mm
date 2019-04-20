@@ -111,19 +111,11 @@ int main(int argc, const char * argv[]) {
                          backing: NSBackingStoreBuffered
                          defer: NO];    
 
-    [NSApp activateIgnoringOtherApps: true];
-
     [window setBackgroundColor: NSColor.blackColor];
     [window setTitle: @"Handmade Hero"];
     [window makeKeyAndOrderFront: nil];
     [window setDelegate: mainWindowDelegate];
     window.contentView.wantsLayer = YES;
-
-    if(window.keyWindow == true) {
-        NSLog(@"Window is key");
-    } else {
-        NSLog(@"Window is not key");
-    }
  
     macOSRefreshBuffer(window);
 
