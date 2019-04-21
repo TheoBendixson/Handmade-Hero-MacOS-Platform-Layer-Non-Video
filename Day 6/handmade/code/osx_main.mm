@@ -120,6 +120,8 @@ int main(int argc, const char * argv[]) {
     macOSRefreshBuffer(window);
 
     [OSXHandmadeController initialize];
+
+    BOOL leftKeyDown = false;
  
     while(running) {
    
@@ -155,6 +157,10 @@ int main(int argc, const char * argv[]) {
 
         }
 
+        if (leftKeyDown) {
+            offsetX--;
+        }
+
         NSEvent* event;
         
         do {
@@ -168,8 +174,15 @@ int main(int argc, const char * argv[]) {
                 case NSEventTypeKeyDown:
                     
                     if (event.keyCode == 0x7B) {
-                        printf("Left Arrow");
-                        offsetX--;
+                        leftKeyDown = true;
+                    } 
+
+                break;
+
+                case NSEventTypeKeyUp:
+                    
+                    if (event.keyCode == 0x7B) {
+                        leftKeyDown = false;
                     } 
 
                 break;
