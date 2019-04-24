@@ -2,7 +2,9 @@
 #include <IOKit/hid/IOHIDLib.h>
 
 static IOHIDManagerRef HIDManager = NULL;
-static NSMutableArray *connectedControllers = nil;
+static OSXHandmadeController *connectedController = nil;
+static OSXHandmadeController *keyboardController = nil; 
+static ControllerInputSource controllerInputSource = ControllerInputSourceController;
 
 const float deadZonePercent = 0.2f;
 
@@ -33,7 +35,8 @@ const float deadZonePercent = 0.2f;
 + (void)initialize {
 
     HIDManager = IOHIDManagerCreate(kCFAllocatorDefault, 0);
-    connectedControllers = [NSMutableArray array];
+    connectedController = [[OSXHandmadeController alloc] init];
+    keyboardController = [[OSXHandmadeController alloc] init];
 
     if (IOHIDManagerOpen(HIDManager, kIOHIDOptionsTypeNone) != kIOReturnSuccess) {
         NSLog(@"Error Initializing OSX Handmade Controllers");
@@ -63,9 +66,43 @@ const float deadZonePercent = 0.2f;
 
 }
 
-+ (NSArray *)controllers {
-    return connectedControllers;
++ (ControllerInputSource)controllerInputSource {
+    return controllerInputSource;
 }
+
++ (void)setControllerInputSource:(ControllerInputSource)newSource {
+   controllerInputSource = newSource; 
+}
+
++ (OSXHandmadeController *)connectedController {
+    return connectedController;
+}
+
++ (OSXHandmadeController *)keyboardController {
+    return keyboardController;
+}
+
++ (void)updateKeyboardControllerWith:(NSEvent *)event {
+    switch ([event type]) {
+        case NSEventTypeKeyDown:
+            if (event.keyCode == 0x7B &&
+                keyboardController.dpadX != 1) {
+                keyboardController.dpadX = -1;
+            } 
+        break;
+
+        case NSEventTypeKeyUp:
+            if (event.keyCode == 0x7B &&
+                keyboardController.dpadX == -1) {
+                keyboardController.dpadX = 0;
+            } 
+        break;
+
+        default:
+        break;
+    }
+}
+
 
 static void
 controllerConnected(void *context, IOReturn result, void *sender, IOHIDDeviceRef device) {
@@ -108,7 +145,7 @@ controllerConnected(void *context, IOReturn result, void *sender, IOHIDDeviceRef
 			@{@(kIOHIDElementUsagePageKey): @(kHIDPage_Button)},
         ]);
 
-        [connectedControllers addObject: controller]; 
+        connectedController = controller;
     }
 }
 
@@ -143,8 +180,6 @@ static void ControllerInput(void *context, IOReturn result, void *sender, IOHIDV
                 NSInteger dpadY = 0;
 
                 switch(state) {
-
-
                     case 0: dpadX = 0; dpadY = 1; break;
                     case 1: dpadX = 1; dpadY = 1; break;
                     case 2: dpadX = 1; dpadY = 0; break;

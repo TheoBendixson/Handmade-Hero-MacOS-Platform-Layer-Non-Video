@@ -91,6 +91,19 @@ void macOSRedrawBuffer(NSWindow *window) {
     }
 }
 
+@interface HandmadeKeyIgnoringWindow: NSWindow
+@end
+
+@implementation HandmadeKeyIgnoringWindow
+
+- (BOOL)acceptsFirstResponder {
+    return YES;
+}
+
+- (void)keyDown:(NSEvent *)theEvent { }
+
+@end
+
 int main(int argc, const char * argv[]) {
 
     HandmadeMainWindowDelegate *mainWindowDelegate = [[HandmadeMainWindowDelegate alloc] init];
@@ -102,7 +115,7 @@ int main(int argc, const char * argv[]) {
                                      globalRenderWidth,
                                      globalRenderHeight);
   
-    NSWindow *window = [[NSWindow alloc] 
+    NSWindow *window = [[HandmadeKeyIgnoringWindow alloc] 
                          initWithContentRect: initialFrame
                          styleMask: NSWindowStyleMaskTitled |
                                     NSWindowStyleMaskClosable |
@@ -119,46 +132,45 @@ int main(int argc, const char * argv[]) {
  
     macOSRefreshBuffer(window);
 
+    [OSXHandmadeController setControllerInputSource: ControllerInputSourceKeyboard];
     [OSXHandmadeController initialize];
-
-    BOOL leftKeyDown = false;
  
     while(running) {
    
         renderWeirdGradient();
         macOSRedrawBuffer(window); 
 
-        NSArray *controllers = [OSXHandmadeController controllers];
+        ControllerInputSource inputSource = [OSXHandmadeController controllerInputSource];
 
-        if(controllers != nil && controllers.count > 0){
-            OSXHandmadeController *controller = (OSXHandmadeController *)[controllers objectAtIndex: 0];
-            if(controller != nil &&
-               controller.buttonAState == true) {
+        OSXHandmadeController *controller;
+
+        if (inputSource == ControllerInputSourceController) {
+            controller = [OSXHandmadeController connectedController];
+        }
+        else if (inputSource == ControllerInputSourceKeyboard) {
+            controller = [OSXHandmadeController keyboardController];
+        }
+        
+        if(controller != nil){
+            if(controller.buttonAState == true) {
                 offsetX++;       
             }
             
-            if(controller != nil) {
-                if (controller.dpadX == 1) {
-                    offsetX++;
-                }
-
-                if (controller.dpadX == -1) {
-                    offsetX--;
-                }
-
-                if (controller.dpadY == 1) {
-                    offsetY++;
-                }
-
-                if (controller.dpadY == -1) {
-                    offsetY--;
-                }
+            if (controller.dpadX == 1) {
+                offsetX++;
             }
 
-        }
+            if (controller.dpadX == -1) {
+                offsetX--;
+            }
 
-        if (leftKeyDown) {
-            offsetX--;
+            if (controller.dpadY == 1) {
+                offsetY++;
+            }
+
+            if (controller.dpadY == -1) {
+                offsetY--;
+            }
         }
 
         NSEvent* event;
@@ -168,25 +180,14 @@ int main(int argc, const char * argv[]) {
                                        untilDate: nil
                                           inMode: NSDefaultRunLoopMode
                                          dequeue: YES];
-            
+           
+            if (event != nil &&
+                (event.type == NSEventTypeKeyDown ||
+                event.type == NSEventTypeKeyUp)) {
+                [OSXHandmadeController updateKeyboardControllerWith: event];
+            }
+ 
             switch ([event type]) {
-                
-                case NSEventTypeKeyDown:
-                    
-                    if (event.keyCode == 0x7B) {
-                        leftKeyDown = true;
-                    } 
-
-                break;
-
-                case NSEventTypeKeyUp:
-                    
-                    if (event.keyCode == 0x7B) {
-                        leftKeyDown = false;
-                    } 
-
-                break;
-
                 default:
                     [NSApp sendEvent: event];
             }
