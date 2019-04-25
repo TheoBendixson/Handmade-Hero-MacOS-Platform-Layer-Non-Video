@@ -155,7 +155,15 @@ int main(int argc, const char * argv[]) {
             if(controller.buttonAState == true) {
                 offsetX++;       
             }
-            
+
+            if(controller.buttonLeftShoulderState == true) {
+                offsetX--;
+            }
+           
+            if(controller.buttonRightShoulderState == true) {
+                offsetX++;
+            }
+ 
             if (controller.dpadX == 1) {
                 offsetX++;
             }
@@ -182,6 +190,7 @@ int main(int argc, const char * argv[]) {
                                          dequeue: YES];
            
             if (event != nil &&
+                OSXHandmadeController.controllerInputSource == ControllerInputSourceKeyboard &&
                 (event.type == NSEventTypeKeyDown ||
                 event.type == NSEventTypeKeyUp)) {
                 [OSXHandmadeController updateKeyboardControllerWith: event];

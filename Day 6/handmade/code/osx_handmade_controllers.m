@@ -8,6 +8,17 @@ static ControllerInputSource controllerInputSource = ControllerInputSourceContro
 
 const float deadZonePercent = 0.2f;
 
+const unsigned short leftArrowKeyCode = 0x7B;
+const unsigned short rightArrowKeyCode = 0x7C;
+const unsigned short downArrowKeyCode = 0x7D;
+const unsigned short upArrowKeyCode = 0x7E;
+const unsigned short aKeyCode = 0x00;
+const unsigned short sKeyCode = 0x01;
+const unsigned short dKeyCode = 0x02;
+const unsigned short fKeyCode = 0x03;
+const unsigned short qKeyCode = 0x0C;
+const unsigned short rKeyCode = 0x0F;
+
 @implementation OSXHandmadeController {
 
     CFIndex _lThumbXUsageID;
@@ -49,9 +60,6 @@ const float deadZonePercent = 0.2f;
         @{@(kIOHIDDeviceUsagePageKey): @(kHIDPage_GenericDesktop), @(kIOHIDDeviceUsageKey): @(kHIDUsage_GD_MultiAxisController)},
     ]);
    
-    // Pump the event loop to initially fill the [CCController +controllers] list.
-	// Otherwise the list would be empty, immediately followed by didConnect events.
-	// Not really a problem, but quite how the iOS API works.
 	NSString *mode = @"CCControllerPollGamepads";
 	IOHIDManagerScheduleWithRunLoop(HIDManager, CFRunLoopGetCurrent(), (__bridge CFStringRef)mode);
 	
@@ -62,7 +70,7 @@ const float deadZonePercent = 0.2f;
 	// Schedule the HID manager normally to get callbacks during runtime.
 	IOHIDManagerScheduleWithRunLoop(HIDManager, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
 	
-	NSLog(@"CCController initialized.");
+	NSLog(@"OSXhandmade Controller initialized.");
 
 }
 
@@ -85,18 +93,114 @@ const float deadZonePercent = 0.2f;
 + (void)updateKeyboardControllerWith:(NSEvent *)event {
     switch ([event type]) {
         case NSEventTypeKeyDown:
-            if (event.keyCode == 0x7B &&
+            if (event.keyCode == leftArrowKeyCode &&
                 keyboardController.dpadX != 1) {
                 keyboardController.dpadX = -1;
-            } 
-        break;
+                break;
+            }
+
+            if (event.keyCode == rightArrowKeyCode &&
+                keyboardController.dpadX != -1) {
+                keyboardController.dpadX = 1;
+                break;
+            }
+
+            if (event.keyCode == downArrowKeyCode &&
+                keyboardController.dpadY != -1) {
+                keyboardController.dpadY = 1;
+                break;
+            }
+
+            if (event.keyCode == upArrowKeyCode &&
+                keyboardController.dpadY != 1) {
+                keyboardController.dpadY = -1;
+                break;
+            }
+
+            if (event.keyCode == aKeyCode) {
+                keyboardController.buttonAState = 1;
+                break;
+            }
+
+            if (event.keyCode == sKeyCode) {
+                keyboardController.buttonBState = 1;
+                break;
+            }
+
+            if (event.keyCode == dKeyCode) {
+                keyboardController.buttonXState = 1;
+                break;
+            }
+
+            if (event.keyCode == fKeyCode) {
+                keyboardController.buttonYState = 1;
+                break;
+            }
+
+            if (event.keyCode == qKeyCode) {
+                keyboardController.buttonLeftShoulderState = 1;
+                break;
+            }
+
+            if (event.keyCode == rKeyCode) {
+                keyboardController.buttonRightShoulderState = 1;
+                break;
+            }
 
         case NSEventTypeKeyUp:
-            if (event.keyCode == 0x7B &&
+            if (event.keyCode == leftArrowKeyCode &&
                 keyboardController.dpadX == -1) {
                 keyboardController.dpadX = 0;
+                break;
             } 
-        break;
+
+            if (event.keyCode == rightArrowKeyCode &&
+                keyboardController.dpadX == 1) {
+                keyboardController.dpadX = 0;
+                break;
+            }
+
+            if (event.keyCode == downArrowKeyCode &&
+                keyboardController.dpadY == 1) {
+                keyboardController.dpadY = 0;
+                break;
+            }
+
+            if (event.keyCode == upArrowKeyCode &&
+                keyboardController.dpadY == -1) {
+                keyboardController.dpadY = 0;
+                break;
+            }
+
+            if (event.keyCode == aKeyCode) {
+                keyboardController.buttonAState = 0;
+                break;
+            }
+
+            if (event.keyCode == sKeyCode) {
+                keyboardController.buttonBState = 0;
+                break;
+            }
+
+            if (event.keyCode == dKeyCode) {
+                keyboardController.buttonXState = 0;
+                break;
+            }
+
+            if (event.keyCode == fKeyCode) {
+                keyboardController.buttonYState = 0;
+                break;
+            }
+
+            if (event.keyCode == qKeyCode) {
+                keyboardController.buttonLeftShoulderState = 0;
+                break;
+            }
+
+            if (event.keyCode == rKeyCode) {
+                keyboardController.buttonRightShoulderState = 0;
+                break;
+            }
 
         default:
         break;
