@@ -1,4 +1,4 @@
-#include <AppKit/AppKit.h>
+#import <AppKit/AppKit.h>
 
 typedef NS_ENUM(NSInteger, ControllerInputSource) {
     ControllerInputSourceController,
@@ -17,18 +17,14 @@ typedef NS_ENUM(NSInteger, ControllerInputSource) {
 @property NSInteger dpadY;
 
 //ABXY
-@property CFIndex buttonAState;
-@property CFIndex buttonBState;
-@property CFIndex buttonXState;
-@property CFIndex buttonYState;
+@property BOOL buttonAState;
+@property BOOL buttonBState;
+@property BOOL buttonXState;
+@property BOOL buttonYState;
 
 //Shoulder Buttons
-@property CFIndex buttonLeftShoulderState;
-@property CFIndex buttonRightShoulderState;
-
-//Trigger Buttons
-@property CFIndex buttonLeftTriggerState;
-@property CFIndex buttonRightTriggerState;
+@property BOOL buttonLeftShoulderState;
+@property BOOL buttonRightShoulderState;
 
 @end
 

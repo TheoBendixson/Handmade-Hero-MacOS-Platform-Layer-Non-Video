@@ -3,12 +3,12 @@
 //
 // OSX Main
 
-#include "handmade_types.h"
-#include "osx_main.h"
-#include "osx_handmade_main_window_delegate.h"
-#include "osx_handmade_controllers.h"
+#import "handmade_types.h"
+#import "osx_main.h"
+#import "osx_handmade_windows.h"
+#import "osx_handmade_controllers.h"
 
-#include <AppKit/AppKit.h>
+#import <AppKit/AppKit.h>
 
 global_variable float globalRenderWidth = 1024;
 global_variable float globalRenderHeight = 768;
@@ -91,19 +91,6 @@ void macOSRedrawBuffer(NSWindow *window) {
     }
 }
 
-@interface HandmadeKeyIgnoringWindow: NSWindow
-@end
-
-@implementation HandmadeKeyIgnoringWindow
-
-- (BOOL)acceptsFirstResponder {
-    return YES;
-}
-
-- (void)keyDown:(NSEvent *)theEvent { }
-
-@end
-
 int main(int argc, const char * argv[]) {
 
     HandmadeMainWindowDelegate *mainWindowDelegate = [[HandmadeMainWindowDelegate alloc] init];
@@ -132,7 +119,8 @@ int main(int argc, const char * argv[]) {
  
     macOSRefreshBuffer(window);
 
-    [OSXHandmadeController setControllerInputSource: ControllerInputSourceKeyboard];
+    [OSXHandmadeController setControllerInputSource: ControllerInputSourceController];
+
     [OSXHandmadeController initialize];
  
     while(running) {
