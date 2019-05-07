@@ -22,6 +22,8 @@ global_variable int pitch;
 global_variable int offsetX = 0;
 global_variable int offsetY = 0;
 
+bool running = true;
+
 void macOSRefreshBuffer(NSWindow *window) {
 
     if (buffer) {
@@ -190,6 +192,6 @@ int main(int argc, const char * argv[]) {
             }
         } while (event != nil);
     }
-    
+ 
     printf("Handmade Finished Running");
 }
