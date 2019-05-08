@@ -5,7 +5,7 @@
 
 #include "handmade_types.h"
 #include "osx_main.h"
-#include "osx_handmade_main_window_delegate.h"
+#include "osx_handmade_windows.h"
 
 #include <AppKit/AppKit.h>
 

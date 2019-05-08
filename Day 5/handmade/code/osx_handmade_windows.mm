@@ -1,5 +1,5 @@
 #include "osx_main.h"
-#include "osx_handmade_main_window_delegate.h"
+#include "osx_handmade_windows.h"
 
 @implementation HandmadeMainWindowDelegate 
 
