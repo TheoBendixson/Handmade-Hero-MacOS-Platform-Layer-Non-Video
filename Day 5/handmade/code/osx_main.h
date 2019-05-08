@@ -1,7 +1,7 @@
 #include "handmade_types.h"
 #include <AppKit/AppKit.h>
 
-global_variable bool running = true;
+extern bool running;
 void macOSRefreshBuffer(NSWindow *window);
 void renderWeirdGradient();
 void macOSRedrawBuffer(NSWindow *window);

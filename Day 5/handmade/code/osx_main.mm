@@ -9,6 +9,8 @@
 
 #include <AppKit/AppKit.h>
 
+bool running = true;
+
 global_variable float globalRenderWidth = 1024;
 global_variable float globalRenderHeight = 768;
 
