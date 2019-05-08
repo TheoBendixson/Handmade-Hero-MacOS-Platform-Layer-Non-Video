@@ -17,11 +17,5 @@
 @end
 
 @implementation HandmadeKeyIgnoringWindow
-
-- (BOOL)acceptsFirstResponder {
-    return YES;
-}
-
 - (void)keyDown:(NSEvent *)theEvent { }
-
 @end

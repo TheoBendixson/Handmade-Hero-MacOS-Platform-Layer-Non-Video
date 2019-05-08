@@ -121,7 +121,7 @@ int main(int argc, const char * argv[]) {
  
     macOSRefreshBuffer(window);
 
-    [OSXHandmadeController setControllerInputSource: ControllerInputSourceController];
+    [OSXHandmadeController setControllerInputSource: ControllerInputSourceKeyboard];
 
     [OSXHandmadeController initialize];
  
