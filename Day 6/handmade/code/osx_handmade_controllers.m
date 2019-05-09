@@ -2,10 +2,10 @@
 #import "handmade_types.h"
 #import <IOKit/hid/IOHIDLib.h>
 
-internal_variable IOHIDManagerRef HIDManager = NULL;
-internal_variable OSXHandmadeController *connectedController = nil;
-internal_variable OSXHandmadeController *keyboardController = nil; 
-internal_variable ControllerInputSource controllerInputSource = ControllerInputSourceController;
+global_variable IOHIDManagerRef HIDManager = NULL;
+global_variable OSXHandmadeController *connectedController = nil;
+global_variable OSXHandmadeController *keyboardController = nil; 
+global_variable ControllerInputSource controllerInputSource = ControllerInputSourceController;
 
 const unsigned short leftArrowKeyCode = 0x7B;
 const unsigned short rightArrowKeyCode = 0x7C;
