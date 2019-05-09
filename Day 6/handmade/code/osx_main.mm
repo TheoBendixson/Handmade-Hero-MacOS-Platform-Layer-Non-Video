@@ -121,8 +121,8 @@ int main(int argc, const char * argv[]) {
  
     macOSRefreshBuffer(window);
 
-    [OSXHandmadeController setControllerInputSource: ControllerInputSourceKeyboard];
-
+    ControllerInputSource inputSource = ControllerInputSourceController;
+    [OSXHandmadeController setControllerInputSource: inputSource];
     [OSXHandmadeController initialize];
  
     while(running) {
@@ -130,16 +130,7 @@ int main(int argc, const char * argv[]) {
         renderWeirdGradient();
         macOSRedrawBuffer(window); 
 
-        ControllerInputSource inputSource = [OSXHandmadeController controllerInputSource];
-
-        OSXHandmadeController *controller;
-
-        if (inputSource == ControllerInputSourceController) {
-            controller = [OSXHandmadeController connectedController];
-        }
-        else if (inputSource == ControllerInputSourceKeyboard) {
-            controller = [OSXHandmadeController keyboardController];
-        }
+        OSXHandmadeController *controller = [OSXHandmadeController selectedController];
         
         if(controller != nil){
             if(controller.buttonAState == true) {
@@ -180,7 +171,7 @@ int main(int argc, const char * argv[]) {
                                          dequeue: YES];
            
             if (event != nil &&
-                OSXHandmadeController.controllerInputSource == ControllerInputSourceKeyboard &&
+                inputSource == ControllerInputSourceKeyboard &&
                 (event.type == NSEventTypeKeyDown ||
                 event.type == NSEventTypeKeyUp)) {
                 [OSXHandmadeController updateKeyboardControllerWith: event];

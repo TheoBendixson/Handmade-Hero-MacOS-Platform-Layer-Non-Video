@@ -7,8 +7,6 @@ internal_variable OSXHandmadeController *connectedController = nil;
 internal_variable OSXHandmadeController *keyboardController = nil; 
 internal_variable ControllerInputSource controllerInputSource = ControllerInputSourceController;
 
-const float deadZonePercent = 0.2f;
-
 const unsigned short leftArrowKeyCode = 0x7B;
 const unsigned short rightArrowKeyCode = 0x7C;
 const unsigned short downArrowKeyCode = 0x7D;
@@ -62,20 +60,22 @@ const unsigned short rKeyCode = 0x0F;
 	NSLog(@"OSXhandmade Controller initialized.");
 }
 
-+ (ControllerInputSource)controllerInputSource {
-    return controllerInputSource;
-}
-
 + (void)setControllerInputSource:(ControllerInputSource)newSource {
    controllerInputSource = newSource; 
 }
 
-+ (OSXHandmadeController *)connectedController {
-    return connectedController;
-}
++ (OSXHandmadeController *)selectedController {
 
-+ (OSXHandmadeController *)keyboardController {
-    return keyboardController;
+    OSXHandmadeController *controller;
+
+    if (controllerInputSource == ControllerInputSourceController) {
+        controller = connectedController;
+    }
+    else if (controllerInputSource == ControllerInputSourceKeyboard) {
+        controller = keyboardController;
+    }
+    
+    return controller;
 }
 
 + (void)updateKeyboardControllerWith:(NSEvent *)event {

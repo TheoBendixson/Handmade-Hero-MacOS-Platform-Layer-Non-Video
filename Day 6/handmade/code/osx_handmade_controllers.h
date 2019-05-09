@@ -6,10 +6,8 @@ typedef NS_ENUM(NSInteger, ControllerInputSource) {
 };
 
 @interface OSXHandmadeController: NSObject
-+ (ControllerInputSource)controllerInputSource;
 + (void)setControllerInputSource:(ControllerInputSource)newSource;
-+ (OSXHandmadeController *)connectedController;
-+ (OSXHandmadeController *)keyboardController;
++ (OSXHandmadeController *)selectedController;
 + (void)updateKeyboardControllerWith:(NSEvent *)event;
 
 //D-Pad
