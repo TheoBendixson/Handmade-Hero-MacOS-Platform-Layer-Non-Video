@@ -1,0 +1,122 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 50;
+	objects = {
+
+/* Begin PBXAggregateTarget section */
+		AC6A3FF3221A2F7D0063ADBA /* HandmadeHero */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = AC6A3FF4221A2F7D0063ADBA /* Build configuration list for PBXAggregateTarget "HandmadeHero" */;
+			buildPhases = (
+			);
+			dependencies = (
+			);
+			name = HandmadeHero;
+			productName = HandmadeHero;
+		};
+/* End PBXAggregateTarget section */
+
+/* Begin PBXFileReference section */
+		AC47639E2251AB00003F0DCB /* osx_handmade_controllers.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = osx_handmade_controllers.m; path = ../code/osx_handmade_controllers.m; sourceTree = "<group>"; };
+		AC6A3FF7221A34060063ADBA /* osx_main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = osx_main.mm; path = ../code/osx_main.mm; sourceTree = "<group>"; };
+		AC925F6A2281C452007EE24D /* osx_handmade_windows.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = osx_handmade_windows.mm; path = ../code/osx_handmade_windows.mm; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		AC6A3FEC221A2DA40063ADBA = {
+			isa = PBXGroup;
+			children = (
+				AC6A3FF7221A34060063ADBA /* osx_main.mm */,
+				AC47639E2251AB00003F0DCB /* osx_handmade_controllers.m */,
+				AC925F6A2281C452007EE24D /* osx_handmade_windows.mm */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXProject section */
+		AC6A3FED221A2DA40063ADBA /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1010;
+				TargetAttributes = {
+					AC6A3FF3221A2F7D0063ADBA = {
+						CreatedOnToolsVersion = 10.1;
+					};
+				};
+			};
+			buildConfigurationList = AC6A3FF0221A2DA40063ADBA /* Build configuration list for PBXProject "HandmadeHero" */;
+			compatibilityVersion = "Xcode 9.3";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = AC6A3FEC221A2DA40063ADBA;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AC6A3FF3221A2F7D0063ADBA /* HandmadeHero */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin XCBuildConfiguration section */
+		AC6A3FF1221A2DA40063ADBA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		AC6A3FF2221A2DA40063ADBA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Release;
+		};
+		AC6A3FF5221A2F7D0063ADBA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = N79LQXAXD6;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		AC6A3FF6221A2F7D0063ADBA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = N79LQXAXD6;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AC6A3FF0221A2DA40063ADBA /* Build configuration list for PBXProject "HandmadeHero" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC6A3FF1221A2DA40063ADBA /* Debug */,
+				AC6A3FF2221A2DA40063ADBA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AC6A3FF4221A2F7D0063ADBA /* Build configuration list for PBXAggregateTarget "HandmadeHero" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC6A3FF5221A2F7D0063ADBA /* Debug */,
+				AC6A3FF6221A2F7D0063ADBA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AC6A3FED221A2DA40063ADBA /* Project object */;
+}
