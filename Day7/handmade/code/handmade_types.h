@@ -3,7 +3,7 @@
 // A collection of custom type definitions we will use throughout the game.
 #include <stdint.h> 
 
-#define internal_variable static
+#define internal_usage static
 #define local_persist static
 #define global_variable static
 

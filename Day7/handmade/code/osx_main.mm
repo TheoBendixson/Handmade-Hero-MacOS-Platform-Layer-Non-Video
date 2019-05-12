@@ -9,6 +9,8 @@
 #import "osx_handmade_controllers.h"
 
 #import <AppKit/AppKit.h>
+#import <AudioUnit/AudioUnit.h>
+#import <CoreAudio/CoreAudio.h>
 
 global_variable float globalRenderWidth = 1024;
 global_variable float globalRenderHeight = 768;
@@ -91,6 +93,76 @@ void macOSRedrawBuffer(NSWindow *window) {
         [image addRepresentation: rep];
         window.contentView.layer.contents = image;
     }
+}
+
+typedef struct GameSoundOutputBuffer {
+    int samplesPerSecond;
+    int sampleCount;
+    int16 *samples;
+} GameSoundOutputBuffer;
+
+struct MacOSSoundOutput {
+    GameSoundOutputBuffer soundBuffer;
+    uint32 soundBufferSize;
+    int16 *coreAudioBuffer;
+    int16 *readCursor;
+    int16 *writeCursor;
+
+    AudioStreamBasicDescription *audioDescriptor;
+    AudioUnit audioUnit;
+};
+
+internal_usage
+void macOSInitSound() {
+
+    GameSoundOutputBuffer *soundBuffer = new GameSoundOutputBuffer();
+    soundBuffer->samplesPerSecond = 48000; 
+
+    MacOSSoundOutput *soundOutput = new MacOSSoundOutput();
+
+    AudioComponentDescription acd;
+    acd.componentType = kAudioUnitType_Output;
+    acd.componentSubType = kAudioUnitSubType_DefaultOutput;
+    acd.componentManufacturer = kAudioUnitManufacturer_Apple;
+
+    AudioComponent outputComponent = AudioComponentFindNext(NULL, &acd);
+    AudioComponentInstanceNew(outputComponent, &soundOutput->audioUnit);
+
+    AudioStreamBasicDescription *audioDescriptor = new AudioStreamBasicDescription();
+
+    int framesPerPacket = 1;
+    int bytesPerFrame = sizeof(int16);
+
+    audioDescriptor->mSampleRate = soundBuffer->samplesPerSecond;
+    audioDescriptor->mFormatID = kAudioFormatLinearPCM;
+    audioDescriptor->mFormatFlags = kAudioFormatFlagIsSignedInteger | 
+                                    kAudioFormatFlagIsNonInterleaved | 
+                                    kAudioFormatFlagIsPacked; 
+    audioDescriptor->mFramesPerPacket = framesPerPacket;
+    audioDescriptor->mChannelsPerFrame = 2; // Stereo sound
+    audioDescriptor->mBitsPerChannel = sizeof(int16) * 8;
+    audioDescriptor->mBytesPerFrame = bytesPerFrame;
+    audioDescriptor->mBytesPerPacket = framesPerPacket * bytesPerFrame; 
+
+    soundOutput->audioDescriptor = audioDescriptor;
+
+
+    // PCM Format
+    // Two Channels
+    // Bits Per Sample: 16
+    // Average Bytes Per Second = Samples Per Second * Block Alignment
+    // Block Alginment = (number of channels * bitsPerSample) / 8 
+    AudioBuffer *primaryBuffer = new AudioBuffer();
+    primaryBuffer->mNumberChannels = 2;
+  
+    int64 blockAlignment = (2 * 16) / 8;
+    int64 byteSize = 48000*sizeof(int16)*2;
+ 
+    // 2 seconds * bytes per second == 2 * ( 
+    primaryBuffer->mDataByteSize = byteSize; 
+
+    // Note(ted): Start it playing
+
 }
 
 int main(int argc, const char * argv[]) {
