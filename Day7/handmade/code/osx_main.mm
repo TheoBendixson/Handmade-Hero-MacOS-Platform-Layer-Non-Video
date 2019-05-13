@@ -8,6 +8,7 @@
 #import "osx_handmade_windows.h"
 #import "osx_handmade_controllers.h"
 
+#include <math.h>
 #import <AppKit/AppKit.h>
 #import <AudioUnit/AudioUnit.h>
 #import <CoreAudio/CoreAudio.h>
@@ -108,9 +109,56 @@ struct MacOSSoundOutput {
     int16 *readCursor;
     int16 *writeCursor;
 
+    double renderPhase;
+
     AudioStreamBasicDescription *audioDescriptor;
     AudioUnit audioUnit;
 };
+
+OSStatus macOSAudioUnitCallback(void *inRefCon,
+                                AudioUnitRenderActionFlags *ioActionFlags,
+                                const AudioTimeStamp *inTimeStamp,
+                                uint32 inBusNumber,
+                                uint32 inNumberFrames,
+                                AudioBufferList *ioData) {
+    return noErr;
+}
+
+OSStatus SineWaveRenderCallback(void * inRefCon,
+                                AudioUnitRenderActionFlags * ioActionFlags,
+                                const AudioTimeStamp * inTimeStamp,
+                                UInt32 inBusNumber,
+                                UInt32 inNumberFrames,
+                                AudioBufferList * ioData)
+{
+    #pragma unused(ioActionFlags)
+    #pragma unused(inTimeStamp)
+    #pragma unused(inBusNumber)
+
+    //double currentPhase = *((double*)inRefCon);
+
+    //osx_sound_output* SoundOutput = ((osx_sound_output*)inRefCon);
+    MacOSSoundOutput *soundOutput = (MacOSSoundOutput *)inRefCon;
+
+    int16* outputBuffer = (int16 *)ioData->mBuffers[0].mData;
+    const double phaseStep = (100.0
+                               / soundOutput->soundBuffer.samplesPerSecond)
+                             * (2.0 * M_PI);
+
+    for (UInt32 i = 0; i < inNumberFrames; i++)
+    {
+        outputBuffer[i] = 5000 * sin(soundOutput->renderPhase);
+        soundOutput->renderPhase += phaseStep;
+    }
+
+    // Copy to the stereo (or the additional X.1 channels)
+    for(UInt32 i = 1; i < ioData->mNumberBuffers; i++)
+    {
+        memcpy(ioData->mBuffers[i].mData, outputBuffer, ioData->mBuffers[i].mDataByteSize);
+    }
+
+    return noErr;
+}
 
 internal_usage
 void macOSInitSound() {
@@ -146,6 +194,25 @@ void macOSInitSound() {
 
     soundOutput->audioDescriptor = audioDescriptor;
 
+    AudioUnitSetProperty(soundOutput->audioUnit,
+                         kAudioUnitProperty_StreamFormat,
+                         kAudioUnitScope_Input,
+                         0,
+                         &audioDescriptor,
+                         sizeof(audioDescriptor));
+
+    AURenderCallbackStruct renderCallback;
+    renderCallback.inputProc = macOSAudioUnitCallback;
+    renderCallback.inputProcRefCon = soundOutput;
+
+    AudioUnitSetProperty(soundOutput->audioUnit,
+                         kAudioUnitProperty_SetRenderCallback,
+                         kAudioUnitScope_Global,
+                         0,
+                         &renderCallback,
+                         sizeof(renderCallback));
+
+    AudioOutputUnitStart(soundOutput->audioUnit);
 
     // PCM Format
     // Two Channels
