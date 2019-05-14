@@ -11,6 +11,7 @@
 #include <math.h>
 #import <AppKit/AppKit.h>
 #import <AudioUnit/AudioUnit.h>
+#import <AudioToolbox/AudioToolbox.h>
 #import <CoreAudio/CoreAudio.h>
 
 global_variable float globalRenderWidth = 1024;
@@ -115,15 +116,6 @@ struct MacOSSoundOutput {
     AudioUnit audioUnit;
 };
 
-OSStatus macOSAudioUnitCallback(void *inRefCon,
-                                AudioUnitRenderActionFlags *ioActionFlags,
-                                const AudioTimeStamp *inTimeStamp,
-                                uint32 inBusNumber,
-                                uint32 inNumberFrames,
-                                AudioBufferList *ioData) {
-    return noErr;
-}
-
 OSStatus SineWaveRenderCallback(void * inRefCon,
                                 AudioUnitRenderActionFlags * ioActionFlags,
                                 const AudioTimeStamp * inTimeStamp,
@@ -160,41 +152,71 @@ OSStatus SineWaveRenderCallback(void * inRefCon,
     return noErr;
 }
 
+const int samplesPerSecond = 48000;
+
+OSStatus squareWaveRenderCallback(void *inRefCon,
+                                  AudioUnitRenderActionFlags *ioActionFlags,
+                                  const AudioTimeStamp *inTimeStamp,
+                                  uint32 inBusNumber,
+                                  uint32 inNumberFrames,
+                                  AudioBufferList *ioData) {
+    #pragma unused(ioActionFlags)
+    #pragma unused(inTimeStamp)
+    #pragma unused(inBusNumber)
+    #pragma unused(inRefCon)
+
+    int16* outputBuffer = (int16*)ioData->mBuffers[0].mData;
+    const double phaseStep = (100.0/samplesPerSecond)*(2.0*M_PI);
+
+    for (uint32 i = 0; i < inNumberFrames; i++) {
+        if((i%256) > 128) {
+            outputBuffer[i] = 5000;
+        } else {
+            outputBuffer[i] = -5000;
+        } 
+    }
+    
+    for(uint32 i = 1; i < ioData->mNumberBuffers; i++) {
+        memcpy(ioData->mBuffers[i].mData, 
+               outputBuffer, 
+               ioData->mBuffers[i].mDataByteSize);
+    }
+
+    return noErr;
+}
+
+global_variable AudioComponentInstance audioUnit;
+
 internal_usage
 void macOSInitSound() {
-
-    GameSoundOutputBuffer *soundBuffer = new GameSoundOutputBuffer();
-    soundBuffer->samplesPerSecond = 48000; 
-
-    MacOSSoundOutput *soundOutput = new MacOSSoundOutput();
-
+    
     AudioComponentDescription acd;
     acd.componentType = kAudioUnitType_Output;
     acd.componentSubType = kAudioUnitSubType_DefaultOutput;
     acd.componentManufacturer = kAudioUnitManufacturer_Apple;
+    acd.componentFlags = 0;
+    acd.componentFlagsMask = 0;
 
     AudioComponent outputComponent = AudioComponentFindNext(NULL, &acd);
-    AudioComponentInstanceNew(outputComponent, &soundOutput->audioUnit);
+    AudioComponentInstanceNew(outputComponent, &audioUnit);
 
-    AudioStreamBasicDescription *audioDescriptor = new AudioStreamBasicDescription();
+    AudioStreamBasicDescription audioDescriptor;
 
     int framesPerPacket = 1;
     int bytesPerFrame = sizeof(int16);
 
-    audioDescriptor->mSampleRate = soundBuffer->samplesPerSecond;
-    audioDescriptor->mFormatID = kAudioFormatLinearPCM;
-    audioDescriptor->mFormatFlags = kAudioFormatFlagIsSignedInteger | 
-                                    kAudioFormatFlagIsNonInterleaved | 
-                                    kAudioFormatFlagIsPacked; 
-    audioDescriptor->mFramesPerPacket = framesPerPacket;
-    audioDescriptor->mChannelsPerFrame = 2; // Stereo sound
-    audioDescriptor->mBitsPerChannel = sizeof(int16) * 8;
-    audioDescriptor->mBytesPerFrame = bytesPerFrame;
-    audioDescriptor->mBytesPerPacket = framesPerPacket * bytesPerFrame; 
+    audioDescriptor.mSampleRate = 48000.0;
+    audioDescriptor.mFormatID = kAudioFormatLinearPCM;
+    audioDescriptor.mFormatFlags = kAudioFormatFlagIsSignedInteger | 
+                                   kAudioFormatFlagIsNonInterleaved | 
+                                   kAudioFormatFlagIsPacked; 
+    audioDescriptor.mFramesPerPacket = framesPerPacket;
+    audioDescriptor.mChannelsPerFrame = 2; // Stereo sound
+    audioDescriptor.mBitsPerChannel = sizeof(int16) * 8;
+    audioDescriptor.mBytesPerFrame = bytesPerFrame;
+    audioDescriptor.mBytesPerPacket = framesPerPacket * bytesPerFrame; 
 
-    soundOutput->audioDescriptor = audioDescriptor;
-
-    AudioUnitSetProperty(soundOutput->audioUnit,
+    AudioUnitSetProperty(audioUnit,
                          kAudioUnitProperty_StreamFormat,
                          kAudioUnitScope_Input,
                          0,
@@ -202,34 +224,17 @@ void macOSInitSound() {
                          sizeof(audioDescriptor));
 
     AURenderCallbackStruct renderCallback;
-    renderCallback.inputProc = macOSAudioUnitCallback;
-    renderCallback.inputProcRefCon = soundOutput;
+    renderCallback.inputProc = squareWaveRenderCallback;
 
-    AudioUnitSetProperty(soundOutput->audioUnit,
+    AudioUnitSetProperty(audioUnit,
                          kAudioUnitProperty_SetRenderCallback,
                          kAudioUnitScope_Global,
                          0,
                          &renderCallback,
                          sizeof(renderCallback));
 
-    AudioOutputUnitStart(soundOutput->audioUnit);
-
-    // PCM Format
-    // Two Channels
-    // Bits Per Sample: 16
-    // Average Bytes Per Second = Samples Per Second * Block Alignment
-    // Block Alginment = (number of channels * bitsPerSample) / 8 
-    AudioBuffer *primaryBuffer = new AudioBuffer();
-    primaryBuffer->mNumberChannels = 2;
-  
-    int64 blockAlignment = (2 * 16) / 8;
-    int64 byteSize = 48000*sizeof(int16)*2;
- 
-    // 2 seconds * bytes per second == 2 * ( 
-    primaryBuffer->mDataByteSize = byteSize; 
-
-    // Note(ted): Start it playing
-
+    AudioUnitInitialize(audioUnit);
+    AudioOutputUnitStart(audioUnit);
 }
 
 int main(int argc, const char * argv[]) {
@@ -263,6 +268,8 @@ int main(int argc, const char * argv[]) {
     ControllerInputSource inputSource = ControllerInputSourceKeyboard;
     [OSXHandmadeController setControllerInputSource: inputSource];
     [OSXHandmadeController initialize];
+
+    macOSInitSound();
  
     while(running) {
    
