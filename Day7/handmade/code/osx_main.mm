@@ -97,61 +97,6 @@ void macOSRedrawBuffer(NSWindow *window) {
     }
 }
 
-typedef struct GameSoundOutputBuffer {
-    int samplesPerSecond;
-    int sampleCount;
-    int16 *samples;
-} GameSoundOutputBuffer;
-
-struct MacOSSoundOutput {
-    GameSoundOutputBuffer soundBuffer;
-    uint32 soundBufferSize;
-    int16 *coreAudioBuffer;
-    int16 *readCursor;
-    int16 *writeCursor;
-
-    double renderPhase;
-
-    AudioStreamBasicDescription *audioDescriptor;
-    AudioUnit audioUnit;
-};
-
-OSStatus SineWaveRenderCallback(void * inRefCon,
-                                AudioUnitRenderActionFlags * ioActionFlags,
-                                const AudioTimeStamp * inTimeStamp,
-                                UInt32 inBusNumber,
-                                UInt32 inNumberFrames,
-                                AudioBufferList * ioData)
-{
-    #pragma unused(ioActionFlags)
-    #pragma unused(inTimeStamp)
-    #pragma unused(inBusNumber)
-
-    //double currentPhase = *((double*)inRefCon);
-
-    //osx_sound_output* SoundOutput = ((osx_sound_output*)inRefCon);
-    MacOSSoundOutput *soundOutput = (MacOSSoundOutput *)inRefCon;
-
-    int16* outputBuffer = (int16 *)ioData->mBuffers[0].mData;
-    const double phaseStep = (100.0
-                               / soundOutput->soundBuffer.samplesPerSecond)
-                             * (2.0 * M_PI);
-
-    for (UInt32 i = 0; i < inNumberFrames; i++)
-    {
-        outputBuffer[i] = 5000 * sin(soundOutput->renderPhase);
-        soundOutput->renderPhase += phaseStep;
-    }
-
-    // Copy to the stereo (or the additional X.1 channels)
-    for(UInt32 i = 1; i < ioData->mNumberBuffers; i++)
-    {
-        memcpy(ioData->mBuffers[i].mData, outputBuffer, ioData->mBuffers[i].mDataByteSize);
-    }
-
-    return noErr;
-}
-
 const int samplesPerSecond = 48000;
 
 OSStatus squareWaveRenderCallback(void *inRefCon,
@@ -166,10 +111,12 @@ OSStatus squareWaveRenderCallback(void *inRefCon,
     #pragma unused(inRefCon)
 
     int16* outputBuffer = (int16*)ioData->mBuffers[0].mData;
-    const double phaseStep = (100.0/samplesPerSecond)*(2.0*M_PI);
+
+    uint32 frequency = 256;
+    uint32 halfFrequency = frequency/2;
 
     for (uint32 i = 0; i < inNumberFrames; i++) {
-        if((i%256) > 128) {
+        if((i%frequency) > halfFrequency) {
             outputBuffer[i] = 5000;
         } else {
             outputBuffer[i] = -5000;
