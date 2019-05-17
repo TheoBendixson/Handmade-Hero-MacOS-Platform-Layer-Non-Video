@@ -2,7 +2,6 @@ echo Building Handmade Hero
 
 OSX_LD_FLAGS="-framework AppKit 
               -framework IOKit
-              -framework CoreAudio
               -framework AudioToolbox"
 
 HANDMADE_CODE_PATH="../handmade/code/"

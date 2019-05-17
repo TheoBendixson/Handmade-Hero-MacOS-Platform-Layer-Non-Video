@@ -8,11 +8,8 @@
 #import "osx_handmade_windows.h"
 #import "osx_handmade_controllers.h"
 
-#include <math.h>
 #import <AppKit/AppKit.h>
-#import <AudioUnit/AudioUnit.h>
 #import <AudioToolbox/AudioToolbox.h>
-#import <CoreAudio/CoreAudio.h>
 
 global_variable float globalRenderWidth = 1024;
 global_variable float globalRenderHeight = 768;
@@ -56,7 +53,7 @@ void renderWeirdGradient() {
             /*  Pixel in memory: RR GG BB AA */
 
             //Red            
-            *pixel = 255; 
+            *pixel = 0; 
             ++pixel;  
 
             //Green
@@ -145,30 +142,40 @@ void macOSInitSound() {
     acd.componentFlagsMask = 0;
 
     AudioComponent outputComponent = AudioComponentFindNext(NULL, &acd);
-    AudioComponentInstanceNew(outputComponent, &audioUnit);
+    OSStatus status = AudioComponentInstanceNew(outputComponent, &audioUnit);
+   
+    //todo: (Ted) - Better error handling 
+    if (status != noErr) {
+        NSLog(@"There was an error setting up sound");
+        return;
+    }
 
     AudioStreamBasicDescription audioDescriptor;
-
-    int framesPerPacket = 1;
-    int bytesPerFrame = sizeof(int16);
-
     audioDescriptor.mSampleRate = 48000.0;
     audioDescriptor.mFormatID = kAudioFormatLinearPCM;
     audioDescriptor.mFormatFlags = kAudioFormatFlagIsSignedInteger | 
                                    kAudioFormatFlagIsNonInterleaved | 
                                    kAudioFormatFlagIsPacked; 
+    int framesPerPacket = 1;
+    int bytesPerFrame = sizeof(int16);
     audioDescriptor.mFramesPerPacket = framesPerPacket;
     audioDescriptor.mChannelsPerFrame = 2; // Stereo sound
     audioDescriptor.mBitsPerChannel = sizeof(int16) * 8;
     audioDescriptor.mBytesPerFrame = bytesPerFrame;
     audioDescriptor.mBytesPerPacket = framesPerPacket * bytesPerFrame; 
 
-    AudioUnitSetProperty(audioUnit,
-                         kAudioUnitProperty_StreamFormat,
-                         kAudioUnitScope_Input,
-                         0,
-                         &audioDescriptor,
-                         sizeof(audioDescriptor));
+    status = AudioUnitSetProperty(audioUnit,
+                                  kAudioUnitProperty_StreamFormat,
+                                  kAudioUnitScope_Input,
+                                  0,
+                                  &audioDescriptor,
+                                  sizeof(audioDescriptor));
+
+    //todo: (Ted) - Better error handling 
+    if (status != noErr) {
+        NSLog(@"There was an error setting up the audio unit");
+        return;
+    }
 
     AURenderCallbackStruct renderCallback;
     renderCallback.inputProc = squareWaveRenderCallback;
