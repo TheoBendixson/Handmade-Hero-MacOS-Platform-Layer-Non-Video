@@ -110,15 +110,18 @@ OSStatus squareWaveRenderCallback(void *inRefCon,
 
     uint32 frequency = 256;
     uint32 halfFrequency = frequency/2;
+    local_persist uint32 frequencyIndex = 0;
 
     for (uint32 i = 0; i < inNumberFrames; i++) {
-        if((i%frequency) > halfFrequency) {
+        if((frequencyIndex%frequency) > halfFrequency) {
             leftChannel[i] = 5000;
             rightChannel[i] = 5000;
         } else {
             leftChannel[i] = -5000;
             rightChannel[i] = -5000;
-        } 
+        }
+ 
+        frequencyIndex++;
     }
 
     return noErr;
@@ -139,7 +142,7 @@ void macOSInitSound() {
     AudioComponent outputComponent = AudioComponentFindNext(NULL, &acd);
     OSStatus status = AudioComponentInstanceNew(outputComponent, &audioUnit);
    
-    //todo: (Ted) - Better error handling 
+    //todo: (ted) - Better error handling 
     if (status != noErr) {
         NSLog(@"There was an error setting up sound");
         return;
@@ -166,7 +169,7 @@ void macOSInitSound() {
                                   &audioDescriptor,
                                   sizeof(audioDescriptor));
 
-    //todo: (Ted) - Better error handling 
+    //todo: (ted) - Better error handling 
     if (status != noErr) {
         NSLog(@"There was an error setting up the audio unit");
         return;
