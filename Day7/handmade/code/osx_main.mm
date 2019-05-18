@@ -94,8 +94,6 @@ void macOSRedrawBuffer(NSWindow *window) {
     }
 }
 
-const int samplesPerSecond = 48000;
-
 OSStatus squareWaveRenderCallback(void *inRefCon,
                                   AudioUnitRenderActionFlags *ioActionFlags,
                                   const AudioTimeStamp *inTimeStamp,
@@ -107,23 +105,20 @@ OSStatus squareWaveRenderCallback(void *inRefCon,
     #pragma unused(inBusNumber)
     #pragma unused(inRefCon)
 
-    int16* outputBuffer = (int16*)ioData->mBuffers[0].mData;
+    int16* leftChannel = (int16*)ioData->mBuffers[0].mData;
+    int16* rightChannel= (int16*)ioData->mBuffers[1].mData;
 
     uint32 frequency = 256;
     uint32 halfFrequency = frequency/2;
 
     for (uint32 i = 0; i < inNumberFrames; i++) {
         if((i%frequency) > halfFrequency) {
-            outputBuffer[i] = 5000;
+            leftChannel[i] = 5000;
+            rightChannel[i] = 5000;
         } else {
-            outputBuffer[i] = -5000;
+            leftChannel[i] = -5000;
+            rightChannel[i] = -5000;
         } 
-    }
-    
-    for(uint32 i = 1; i < ioData->mNumberBuffers; i++) {
-        memcpy(ioData->mBuffers[i].mData, 
-               outputBuffer, 
-               ioData->mBuffers[i].mDataByteSize);
     }
 
     return noErr;

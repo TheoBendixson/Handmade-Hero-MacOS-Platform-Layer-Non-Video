@@ -154,4 +154,59 @@ The fourth parameter is the [AudioUnitElement](https://developer.apple.com/docum
 
 The last two parameters (which could actually just be one) simply take the audioDescriptor we just defined above. It's kinda silly that you have to pass the size of the thing, as if they couldn't figure that out from inside of the function itself. But hey that's just how it is.
 
+###Creating an Audio Render Callback
+If you did the [tutorial where we setup a Sony Dual Shock 4 Game Controller](https://medium.com/@theobendixson/handmade-hero-mac-os-platform-layer-day-6-controller-and-keyboard-input-part-1-b06c2e303d30), much of this will be familiar. We will define an AURenderCallback function, pass it to another function, and the system will call us when that event occurs. In this case, our callback function is something AudioToolbox calls in order to get audio samples for its render buffer.
 
+Copy the following function stub into the osx_main.mm file, directly above the macOSInitSound function:
+
+'''Objective-C++
+OSStatus squareWaveRenderCallback(void *inRefCon,
+                                  AudioUnitRenderActionFlags *ioActionFlags,
+                                  const AudioTimeStamp *inTimeStamp,
+                                  uint32 inBusNumber,
+                                  uint32 inNumberFrames,
+                                  AudioBufferList *ioData) {
+
+} 
+'''
+
+This function has the signature of an [AURenderCallback, as defined in the documentation](https://developer.apple.com/documentation/audiotoolbox/aurendercallback?language=objc). When all is said and done, it will render a square wave to the audio buffer. Let's step through the meaning of some of those parameters.
+
+inRefCon is just a pointer to some custom piece of data you can pass into the function. Later on, we will probably pass in a pointer to the game's circular buffer. For now, we aren't going to pass anything in.
+
+ioActionFlags have to do with pre and post audi processing. We're not really interested in doing that for a basic square wave, so we can leave that out too.
+
+The timestamp and bus number also won't be used. The bus number is the same audio bus number from AudioUnitSetProperty, which is the global one for our use case.
+
+We actually care about inNumberFrames and ioData. inNumberFrames tells us how many frames of audio the system expects us to provide the buffer. ioData is just a pointer to the two buffers representing the stereo audio channels.
+
+###Creating an AURendercallbackStruct
+Now that we have a square wave rendering function defined, we need a way to associate it with our AudioComponentInstance. We do that by creating an AURenderCallbackStruct.
+
+Copy/Paste the following two lines of code, right after the lines where you set the kAudioUnitProperty_StreamFormat:
+
+'''Objective-C++
+AURenderCallbackStruct renderCallback;
+renderCallback.inputProc = squareWaveRenderCallback;
+
+AudioUnitSetProperty(audioUnit,
+                     kAudioUnitProperty_SetRenderCallback,
+                     kAudioUnitScope_Global,
+                     0,
+                     &renderCallback,
+                     sizeof(renderCallback));
+'''
+
+There isn't much new here. It's the same AudioUnitSetProperty function we used earlier to set the stream format. This just registers the render callback so the system will call the square wave function when rendering.
+
+Add the following two lines and we're done with basic CoreAudio setup on the Mac.
+
+'''Objective-C++
+AudioUnitInitialize(audioUnit);
+AudioOutputUnitStart(audioUnit);
+'''
+
+##Rendering a Square Wave
+It goes without saying that no sound will play unless we put some code in the squareWaveRenderCallback function we defined above. Let's get started with that.
+
+First, we want to get a handle to the left and right channels. 
