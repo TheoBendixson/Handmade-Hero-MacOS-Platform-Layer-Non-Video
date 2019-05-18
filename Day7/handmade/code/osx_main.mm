@@ -25,6 +25,8 @@ global_variable int offsetY = 0;
 
 bool running = true;
 
+const int samplesPerSecond = 48000;
+
 void macOSRefreshBuffer(NSWindow *window) {
 
     if (buffer) {
@@ -109,11 +111,12 @@ OSStatus squareWaveRenderCallback(void *inRefCon,
     int16* rightChannel= (int16*)ioData->mBuffers[1].mData;
 
     uint32 frequency = 256;
-    uint32 halfFrequency = frequency/2;
-    local_persist uint32 frequencyIndex = 0;
+    uint32 period = samplesPerSecond/frequency; 
+    uint32 halfPeriod = period/2;
+    local_persist uint32 periodIndex = 0;
 
     for (uint32 i = 0; i < inNumberFrames; i++) {
-        if((frequencyIndex%frequency) > halfFrequency) {
+        if((periodIndex%period) > halfPeriod) {
             leftChannel[i] = 5000;
             rightChannel[i] = 5000;
         } else {
@@ -121,7 +124,7 @@ OSStatus squareWaveRenderCallback(void *inRefCon,
             rightChannel[i] = -5000;
         }
  
-        frequencyIndex++;
+        periodIndex++;
     }
 
     return noErr;
@@ -149,7 +152,7 @@ void macOSInitSound() {
     }
 
     AudioStreamBasicDescription audioDescriptor;
-    audioDescriptor.mSampleRate = 48000.0;
+    audioDescriptor.mSampleRate = samplesPerSecond;
     audioDescriptor.mFormatID = kAudioFormatLinearPCM;
     audioDescriptor.mFormatFlags = kAudioFormatFlagIsSignedInteger | 
                                    kAudioFormatFlagIsNonInterleaved | 

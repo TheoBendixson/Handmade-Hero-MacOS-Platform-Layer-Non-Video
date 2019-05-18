@@ -102,11 +102,17 @@ Now that we've made a basic audio output component, we can focus on the actual a
 
 We're going to do something very similar to what Casey does, but our audio (at least on the Mac side) won't be interleaved. All that means is we're going to do 48khz linear PCM with two channels instead of one channel where the left and right speakers switch off.
 
+Let's define a constant variable for the sample rate, representing 48khz. Place this code in the global scope at the top of the file.
+
+'''Objective-C++
+const int samplesPerSecond = 48000;
+'''
+
 Add the following lines next:
 
 '''Objective-C++
 AudioStreamBasicDescription audioDescriptor;
-audioDescriptor.mSampleRate = 48000.0;
+audioDescriptor.mSampleRate = samplesPerSecond;
 audioDescriptor.mFormatID = kAudioFormatLinearPCM;
 audioDescriptor.mFormatFlags = kAudioFormatFlagIsSignedInteger | 
                                kAudioFormatFlagIsNonInterleaved | 
@@ -222,17 +228,22 @@ int16* rightChannel= (int16*)ioData->mBuffers[1].mData;
 
 How do I know that the first buffer in the AudioBufferList represents the left channel? Easy. A simple scientific experiment. If you only send data to one of the channels, you will quickly figure out which channel is playing by hearing it.
 
-Next, we want to define a frequency that's roughly close to middle C. In Casey's stream, he picked 256 so we'll just go with that. We also want to know what a half frequency step looks like so we know when to switch from wave peak to wave trough.
+Next, we want to define a frequency that's roughly close to middle C. In Casey's stream, he picked 256 so we'll just go with that.
+
+For the purposes out outputting sound, however, it is much easier to work with the period of the sound, or the number of values from the start of one peak/trough to the next. That's because the period will be the number of values we need to write into the buffer to represent a single peak/trough combo.
+
+Knowing what a half period amounts to is also crucial. With the half period, we know exactly how many peaks or troughs to write before inverting the signal and writing the opposite.
 
 Paste these lines next:
 
 '''Objective-C++
 uint32 frequency = 256;
-uint32 halfFrequency = frequency/2;
-local_persist uint32 frequencyIndex = 0;
+uint32 period = samplesPerSecond/frequency; 
+uint32 halfPeriod = period/2;
+local_persist uint32 periodIndex = 0;
 '''
 
-The frequency index is a special locally persisted variable that tells us how far along we are in writing part of a wave, either the peak or trough. This variable is crucial because it keeps our place between different system calls. 
+The period index is a special locally persisted variable that tells us how far along we are in writing part of a wave, either the peak or trough. This variable is crucial because it keeps our place between different system calls. 
 
 That is why we have defined it as a locally persisting entity. It starts with a value of zero, but the next time the renderCallback is run, it will retain its value from the previous call. If we finished that render callback one quarter of the way through writing the peaks, we will start the next callback one quarter through, just as one would expect.
 
@@ -247,14 +258,14 @@ for (uint32 i = 0; i < inNumberFrames; i++) {
 }
 '''
 
-Now we just need to write to the two channels. We want to go for half of the frequency writing the max value to the buffer (5000 so we don't blow out our ears!), then switch to the opposite of that value for another half of 256, writing -5000 to create the troughs.
+Now we just need to write to the two channels. We want to go for half of the period writing the max value to the buffer (5000 so we don't blow out our ears!), then switch to the opposite of that value for another half of 256, writing -5000 to create the troughs.
 
 Presumably, we'll just keep switching like this until we run out of frames to write. Then we'll do the same thing all over again the next time the system makes this call.
 
 Paste the following code into the body of the for loop to switch writing positive and negative values in this way.
 
 '''Objective-C++
-    if((frequencyIndex%frequency) > halfFrequency) {
+    if((periodIndex%period) > halfPeriod) {
         leftChannel[i] = 5000;
         rightChannel[i] = 5000;
     } else {
@@ -262,12 +273,12 @@ Paste the following code into the body of the for loop to switch writing positiv
         rightChannel[i] = -5000;
     }
 
-    frequencyIndex++;
+    periodIndex++;
 '''
 
-You can see that we use the frequency index in conjunction with the modulus operator to figure out the remainder of dividing by the frequency. If the remainder is greater than a half frequency step, we switch to writing the other side of the wave. Effectively, for half of a frequency step, we will write 5000 then switch over to -5000 for the rest.
+You can see that we use the period index in conjunction with the modulus operator to figure out the remainder of dividing by the period. If the remainder is greater than a half period step, we switch to writing the other side of the wave. Effectively, for half of a period step, we will write 5000 then switch over to -5000 for the rest.
 
-Also note that we need to increment the frequency index with each frame. This just keeps going up and up until the frequency index eventually overflows to zero, starting the process all over again but still outputting a pure tone.
+Also note that we need to increment the period index with each frame. This just keeps going up and up until the period index eventually overflows to zero, starting the process all over again but still outputting a pure tone.
 
 That's all there is to writing a square wave. We've also set this up so you can change the frequency, recompile, and hear different pitched sounds.
 
