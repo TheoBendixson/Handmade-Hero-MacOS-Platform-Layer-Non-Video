@@ -199,12 +199,18 @@ Copy/Paste the following two lines of code, right after the lines where you set 
 AURenderCallbackStruct renderCallback;
 renderCallback.inputProc = squareWaveRenderCallback;
 
-AudioUnitSetProperty(audioUnit,
-                     kAudioUnitProperty_SetRenderCallback,
-                     kAudioUnitScope_Global,
-                     0,
-                     &renderCallback,
-                     sizeof(renderCallback));
+status = AudioUnitSetProperty(audioUnit,
+                              kAudioUnitProperty_SetRenderCallback,
+                              kAudioUnitScope_Global,
+                              0,
+                              &renderCallback,
+                              sizeof(renderCallback));
+
+//todo: (ted) - Better error handling 
+if (status != noErr) {
+    NSLog(@"There was an error setting up the audio unit");
+    return;
+}
 '''
 
 There isn't much new here. It's the same AudioUnitSetProperty function we used earlier to set the stream format. This just registers the render callback so the system will call the square wave function when rendering.

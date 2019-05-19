@@ -142,8 +142,10 @@ void macOSInitSound() {
     acd.componentFlags = 0;
     acd.componentFlagsMask = 0;
 
-    AudioComponent outputComponent = AudioComponentFindNext(NULL, &acd);
-    OSStatus status = AudioComponentInstanceNew(outputComponent, &audioUnit);
+    AudioComponent outputComponent = AudioComponentFindNext(NULL, 
+                                                            &acd);
+    OSStatus status = AudioComponentInstanceNew(outputComponent, 
+                                                &audioUnit);
    
     //todo: (ted) - Better error handling 
     if (status != noErr) {
@@ -181,12 +183,18 @@ void macOSInitSound() {
     AURenderCallbackStruct renderCallback;
     renderCallback.inputProc = squareWaveRenderCallback;
 
-    AudioUnitSetProperty(audioUnit,
-                         kAudioUnitProperty_SetRenderCallback,
-                         kAudioUnitScope_Global,
-                         0,
-                         &renderCallback,
-                         sizeof(renderCallback));
+    status = AudioUnitSetProperty(audioUnit,
+                                  kAudioUnitProperty_SetRenderCallback,
+                                  kAudioUnitScope_Global,
+                                  0,
+                                  &renderCallback,
+                                  sizeof(renderCallback));
+
+    //todo: (ted) - Better error handling 
+    if (status != noErr) {
+        NSLog(@"There was an error setting up the audio unit");
+        return;
+    }
 
     AudioUnitInitialize(audioUnit);
     AudioOutputUnitStart(audioUnit);
