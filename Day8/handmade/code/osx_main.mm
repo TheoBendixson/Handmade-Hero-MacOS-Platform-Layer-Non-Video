@@ -23,7 +23,7 @@ global_variable int pitch;
 global_variable int offsetX = 0;
 global_variable int offsetY = 0;
 
-global_variable MacOSSoundBuffer soundBuffer = {};
+global_variable MacOSSoundOutput soundOutput = {};
 
 bool running = true;
 
@@ -96,35 +96,24 @@ void macOSRedrawBuffer(NSWindow *window) {
     }
 }
 
-OSStatus squareWaveRenderCallback(void *inRefCon,
-                                  AudioUnitRenderActionFlags *ioActionFlags,
-                                  const AudioTimeStamp *inTimeStamp,
-                                  uint32 inBusNumber,
-                                  uint32 inNumberFrames,
-                                  AudioBufferList *ioData) {
-    #pragma unused(ioActionFlags)
-    #pragma unused(inTimeStamp)
-    #pragma unused(inBusNumber)
-    #pragma unused(inRefCon)
-
+OSStatus circularBufferRenderCallback(void *inRefCon,
+                                      AudioUnitRenderActionFlags *ioActionFlags,
+                                      const AudioTimeStamp *inTimeStamp,
+                                      uint32 inBusNumber,
+                                      uint32 inNumberFrames,
+                                      AudioBufferList *ioData) {
+    
     int16* leftChannel = (int16*)ioData->mBuffers[0].mData;
     int16* rightChannel= (int16*)ioData->mBuffers[1].mData;
 
-    uint32 frequency = 256;
-    uint32 period = soundBuffer.samplesPerSecond/frequency; 
-    uint32 halfPeriod = period/2;
-    local_persist uint32 periodIndex = 0;
+    for (uint32 i = 0; i < inNumberFrames; ++i) {
+        int16 *output = soundOutput.readCursor++;
+        leftChannel[i] = *output;
+        rightChannel[i] = *output;
 
-    for (uint32 i = 0; i < inNumberFrames; i++) {
-        if((periodIndex%period) > halfPeriod) {
-            leftChannel[i] = 5000;
-            rightChannel[i] = 5000;
-        } else {
-            leftChannel[i] = -5000;
-            rightChannel[i] = -5000;
+        if ((char *)soundOutput.readCursor >= (char *)((char *)soundOutput.coreAudioBuffer + soundOutput.bufferSize)) {
+            soundOutput.readCursor = soundOutput.coreAudioBuffer;
         }
- 
-        periodIndex++;
     }
 
     return noErr;
@@ -136,26 +125,31 @@ internal_usage
 void macOSInitSound() {
   
     //Create a two second circular buffer 
-    soundBuffer.samplesPerSecond = 48000; 
-    soundBuffer.bufferSize = soundBuffer.samplesPerSecond * sizeof(int16) * 2;
+    soundOutput.samplesPerSecond = 48000; 
+    soundOutput.bufferSize = soundOutput.samplesPerSecond * sizeof(int16) * 2;
 
     uint32 maxPossibleOverrun = 8 * 2 * sizeof(int16);
 
-    soundBuffer.samples = (int16*)mmap(0,
-                                       soundBuffer.bufferSize + maxPossibleOverrun,
-                                       PROT_READ|PROT_WRITE,
-                                       MAP_PRIVATE|MAP_ANON,
-                                       -1,
-                                       0);
-   
+    soundOutput.coreAudioBuffer = (int16*)mmap(0,
+                                               soundOutput.bufferSize + maxPossibleOverrun,
+                                               PROT_READ|PROT_WRITE,
+                                               MAP_PRIVATE|MAP_ANON,
+                                               -1,
+                                               0);
+ 
     //todo: (ted) better error handling 
-    if (soundBuffer.samples == MAP_FAILED) {
-        NSLog(@"Sound Buffer Samples mmap error");
+    if (soundOutput.coreAudioBuffer == MAP_FAILED) {
+        NSLog(@"Core Audio Buffer mmap error");
         return;
     }
 
+    memset(soundOutput.coreAudioBuffer,
+           0,
+           soundOutput.bufferSize);
 
- 
+    soundOutput.readCursor = soundOutput.coreAudioBuffer;
+    soundOutput.writeCursor = soundOutput.coreAudioBuffer;
+
     AudioComponentDescription acd;
     acd.componentType = kAudioUnitType_Output;
     acd.componentSubType = kAudioUnitSubType_DefaultOutput;
@@ -175,7 +169,7 @@ void macOSInitSound() {
     }
 
     AudioStreamBasicDescription audioDescriptor;
-    audioDescriptor.mSampleRate = soundBuffer.samplesPerSecond;
+    audioDescriptor.mSampleRate = soundOutput.samplesPerSecond;
     audioDescriptor.mFormatID = kAudioFormatLinearPCM;
     audioDescriptor.mFormatFlags = kAudioFormatFlagIsSignedInteger | 
                                    kAudioFormatFlagIsNonInterleaved | 
@@ -202,7 +196,7 @@ void macOSInitSound() {
     }
 
     AURenderCallbackStruct renderCallback;
-    renderCallback.inputProc = squareWaveRenderCallback;
+    renderCallback.inputProc = circularBufferRenderCallback;
 
     status = AudioUnitSetProperty(audioUnit,
                                   kAudioUnitProperty_SetRenderCallback,
@@ -219,6 +213,46 @@ void macOSInitSound() {
 
     AudioUnitInitialize(audioUnit);
     AudioOutputUnitStart(audioUnit);
+}
+
+internal_usage
+void updateSoundBuffer() {
+  
+    int sampleCount = 3200;
+ 
+    //note: (ted) - This is where we would usually get sound samples
+    uint32 frequency = 256;
+    uint32 period = soundOutput.samplesPerSecond/frequency; 
+    uint32 halfPeriod = period/2;
+    local_persist uint32 runningSampleIndex = 0;
+ 
+    for (int i = 0; i < sampleCount; ++i) {
+
+        //Write cursor wrapped. Start at the beginning of the Core Audio Buffer.
+        if ((char *)soundOutput.writeCursor >= ((char *)soundOutput.coreAudioBuffer + soundOutput.bufferSize)) {
+            
+            if (soundOutput.readCursor == soundOutput.coreAudioBuffer) {
+                break;
+            }
+
+            soundOutput.writeCursor = soundOutput.coreAudioBuffer;
+        }
+
+        if ((char *)soundOutput.writeCursor == ((char *)soundOutput.readCursor - sizeof(int16))) {
+            break;
+        }
+
+        int16 sampleValue;
+
+        if((runningSampleIndex%period) > halfPeriod) {
+            sampleValue = 5000;
+        } else {
+            sampleValue = -5000;
+        }
+
+        *soundOutput.writeCursor++ = sampleValue;
+        runningSampleIndex++; 
+    }
 }
 
 int main(int argc, const char * argv[]) {
@@ -259,6 +293,7 @@ int main(int argc, const char * argv[]) {
    
         renderWeirdGradient();
         macOSRedrawBuffer(window); 
+        updateSoundBuffer();
 
         OSXHandmadeController *controller = [OSXHandmadeController selectedController];
         

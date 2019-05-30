@@ -1,8 +1,10 @@
 #import "handmade_types.h"
 #import "AppKit/Appkit.h"
 
-struct MacOSSoundOutput {
+struct MacOSSoundBuffer {
     int samplesPerSecond; 
+    int sampleCount;
+    int16* samples; 
     uint32 bufferSize;
     int16* coreAudioBuffer;
     int16* readCursor;

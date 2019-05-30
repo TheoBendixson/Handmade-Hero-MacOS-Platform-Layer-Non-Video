@@ -23,9 +23,9 @@ global_variable int pitch;
 global_variable int offsetX = 0;
 global_variable int offsetY = 0;
 
-bool running = true;
+global_variable MacOSSoundBuffer soundBuffer = {};
 
-const int samplesPerSecond = 48000;
+bool running = true;
 
 void macOSRefreshBuffer(NSWindow *window) {
 
@@ -96,6 +96,38 @@ void macOSRedrawBuffer(NSWindow *window) {
     }
 }
 
+OSStatus circularBufferRenderCallback(void *inRefCon,
+                                      AudioUnitRenderActionFlags *ioActionFlags,
+                                      const AudioTimeStamp *inTimeStamp,
+                                      uint32 inBusNumber,
+                                      uint32 inNumberFrames,
+                                      AudioBufferList *ioData) {
+
+    if (soundBuffer.readCursor == soundBuffer.writeCursor) {
+        soundBuffer.sampleCount = 0;
+    }
+
+    int sampleCount = inNumberFrames;
+    if (soundBuffer.sampleCount < inNumberFrames) {
+        sampleCount = soundBuffer.sampleCount;
+    } 
+
+    int16* leftChannel = (int16*)ioData->mBuffers[0].mData;
+    int16* rightChannel= (int16*)ioData->mBuffers[1].mData;
+
+    for (uint32 i = 0; i < sampleCount; ++i) {
+        int16 *output = soundBuffer.readCursor++;
+        leftChannel[i] = *output;
+        rightChannel[i] = *output;
+
+        if ((char *)soundBuffer.readCursor >= (char *)((char *)soundBuffer.coreAudioBuffer + soundBuffer.bufferSize)) {
+            soundBuffer.readCursor = soundBuffer.coreAudioBuffer;
+        }
+    }
+
+    return noErr;
+}
+
 OSStatus squareWaveRenderCallback(void *inRefCon,
                                   AudioUnitRenderActionFlags *ioActionFlags,
                                   const AudioTimeStamp *inTimeStamp,
@@ -107,20 +139,21 @@ OSStatus squareWaveRenderCallback(void *inRefCon,
     #pragma unused(inBusNumber)
     #pragma unused(inRefCon)
 
-    int16* channel = (int16*)ioData->mBuffers[0].mData;
+    int16* leftChannel = (int16*)ioData->mBuffers[0].mData;
+    int16* rightChannel= (int16*)ioData->mBuffers[1].mData;
 
     uint32 frequency = 256;
-    uint32 period = samplesPerSecond/frequency; 
+    uint32 period = soundBuffer.samplesPerSecond/frequency; 
     uint32 halfPeriod = period/2;
     local_persist uint32 periodIndex = 0;
 
     for (uint32 i = 0; i < inNumberFrames; i++) {
         if((periodIndex%period) > halfPeriod) {
-            *channel++ = 5000;
-            *channel++ = 5000; 
+            leftChannel[i] = 5000;
+            rightChannel[i] = 5000;
         } else {
-            *channel++ = -5000;
-            *channel++ = -5000; 
+            leftChannel[i] = -5000;
+            rightChannel[i] = -5000;
         }
  
         periodIndex++;
@@ -133,7 +166,33 @@ global_variable AudioComponentInstance audioUnit;
 
 internal_usage
 void macOSInitSound() {
-    
+  
+    //Create a two second circular buffer 
+    soundBuffer.samplesPerSecond = 48000; 
+    soundBuffer.bufferSize = soundBuffer.samplesPerSecond * sizeof(int16) * 2;
+
+    uint32 maxPossibleOverrun = 8 * 2 * sizeof(int16);
+
+    soundBuffer.coreAudioBuffer = (int16*)mmap(0,
+                                               soundBuffer.bufferSize + maxPossibleOverrun,
+                                               PROT_READ|PROT_WRITE,
+                                               MAP_PRIVATE|MAP_ANON,
+                                               -1,
+                                               0);
+ 
+    //todo: (ted) better error handling 
+    if (soundBuffer.coreAudioBuffer == MAP_FAILED) {
+        NSLog(@"Core Audio Buffer mmap error");
+        return;
+    }
+
+    memset(soundBuffer.coreAudioBuffer,
+           0,
+           soundBuffer.bufferSize);
+
+    soundBuffer.readCursor = soundBuffer.coreAudioBuffer;
+    soundBuffer.writeCursor = soundBuffer.coreAudioBuffer;
+
     AudioComponentDescription acd;
     acd.componentType = kAudioUnitType_Output;
     acd.componentSubType = kAudioUnitSubType_DefaultOutput;
@@ -153,12 +212,13 @@ void macOSInitSound() {
     }
 
     AudioStreamBasicDescription audioDescriptor;
-    audioDescriptor.mSampleRate = samplesPerSecond;
+    audioDescriptor.mSampleRate = soundBuffer.samplesPerSecond;
     audioDescriptor.mFormatID = kAudioFormatLinearPCM;
     audioDescriptor.mFormatFlags = kAudioFormatFlagIsSignedInteger | 
+                                   kAudioFormatFlagIsNonInterleaved | 
                                    kAudioFormatFlagIsPacked; 
     int framesPerPacket = 1;
-    int bytesPerFrame = sizeof(int16) * 2;
+    int bytesPerFrame = sizeof(int16);
     audioDescriptor.mFramesPerPacket = framesPerPacket;
     audioDescriptor.mChannelsPerFrame = 2; // Stereo sound
     audioDescriptor.mBitsPerChannel = sizeof(int16) * 8;
@@ -179,7 +239,7 @@ void macOSInitSound() {
     }
 
     AURenderCallbackStruct renderCallback;
-    renderCallback.inputProc = squareWaveRenderCallback;
+    renderCallback.inputProc = circularBufferRenderCallback;
 
     status = AudioUnitSetProperty(audioUnit,
                                   kAudioUnitProperty_SetRenderCallback,
@@ -196,6 +256,42 @@ void macOSInitSound() {
 
     AudioUnitInitialize(audioUnit);
     AudioOutputUnitStart(audioUnit);
+}
+
+internal_usage
+void updateSoundBuffer() {
+  
+    soundBuffer.sampleCount = 3200;
+ 
+    //note: (ted) - This is where we would usually get sound samples
+    uint32 frequency = 256;
+    uint32 period = soundBuffer.samplesPerSecond/frequency; 
+    uint32 halfPeriod = period/2;
+    local_persist uint32 periodIndex = 0;
+ 
+    for (int i = 0; i < soundBuffer.sampleCount; ++i) {
+
+        //Write cursor wrapped. Start at the beginning of the Core Audio Buffer.
+        if ((char *)soundBuffer.writeCursor >= ((char *)soundBuffer.coreAudioBuffer + soundBuffer.bufferSize)) {
+            
+            if (soundBuffer.readCursor == soundBuffer.coreAudioBuffer) {
+                break;
+            }
+
+            soundBuffer.writeCursor = soundBuffer.coreAudioBuffer;
+        }
+
+        if ((char *)soundBuffer.writeCursor == ((char *)soundBuffer.readCursor - sizeof(int16))) {
+            break;
+        }
+
+        float t = ((float)periodIndex / (float)period) * 2*M_PI;
+        float sineValue = sinf(t);
+        int16 sampleValue = (int16)(sineValue * 5000);
+        *soundBuffer.writeCursor++ = sampleValue;
+ 
+        periodIndex++;
+    }
 }
 
 int main(int argc, const char * argv[]) {
@@ -236,6 +332,7 @@ int main(int argc, const char * argv[]) {
    
         renderWeirdGradient();
         macOSRedrawBuffer(window); 
+        updateSoundBuffer();
 
         OSXHandmadeController *controller = [OSXHandmadeController selectedController];
         

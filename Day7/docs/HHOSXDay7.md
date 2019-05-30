@@ -1,4 +1,4 @@
-#Handmade Hero Mac OS Platform Layer, Day 7; Initializing Core Audio.
+# Handmade Hero Mac OS Platform Layer, Day 7; Initializing Core Audio.
 We are now seven days into building the Mac OS platform layer for Handmade Hero. Time really flies. I started this project back in the beginning of snowboarding season, and I've been chipping away it in my spare time. 
 
 I've recently found some extra time to work on it, and that has been truly educational, but also tons of fun. So I'm happy there are others who can share the joy of programming with me.
@@ -9,12 +9,12 @@ Of course, very few video games would be complete without audio. Sound adds an e
 
 This is actually kind of astonishing if you think about it. Of all the sounds we've heard throughout our lives, and subsequently thrown away, we decided to retain these. If audio weren't important, this just wouldn't be possible.
 
-##What We Will Be Covering
+## What We Will Be Covering
 We are synced back up with Casey again. On day 7, he tackles DirectSound on Windows. Today, we will tackle the basics of CoreAudio on the Mac (and technically iOS since it works in a very similar way).
 
 The goal of this article is to get you to a point where you've got the ability to listen to a square wave on your Mac. We will get all of the basics taken care of, then dive into the more advanced aspects of setting up a circular buffer in the next article.
 
-##Acknowledgements
+## Acknowledgements
 Matt Gallagher's [Cocoa With Love](http://www.cocoawithlove.com) has been incredibly helpful in putting this series together. [He has an excellent article on how to play a single tone](http://www.cocoawithlove.com/2010/10/ios-tone-generator-introduction-to.html), and I drew plenty of inspiration from it.
 
 Of course, I keep coming back to [Jeff Buck's Handmade Hero Mac OS github repository](https://github.com/itfrombit/osx_handmade). Many of the ideas you see presented here come from the work he's done. As I like to say, there's nothing all that special about what I'm doing. I am simply taking much of what Jeff has done and presenting it in a more digestible way so you can follow Casey's series. 
