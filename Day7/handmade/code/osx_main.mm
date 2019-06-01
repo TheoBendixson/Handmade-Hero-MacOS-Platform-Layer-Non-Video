@@ -112,10 +112,10 @@ OSStatus squareWaveRenderCallback(void *inRefCon,
     uint32 frequency = 256;
     uint32 period = samplesPerSecond/frequency; 
     uint32 halfPeriod = period/2;
-    local_persist uint32 periodIndex = 0;
+    local_persist uint32 runningSampleIndex = 0;
 
     for (uint32 i = 0; i < inNumberFrames; i++) {
-        if((periodIndex%period) > halfPeriod) {
+        if((runningSampleIndex%period) > halfPeriod) {
             *channel++ = 5000;
             *channel++ = 5000; 
         } else {
@@ -123,7 +123,7 @@ OSStatus squareWaveRenderCallback(void *inRefCon,
             *channel++ = -5000; 
         }
  
-        periodIndex++;
+        runningSampleIndex++;
     }
 
     return noErr;
