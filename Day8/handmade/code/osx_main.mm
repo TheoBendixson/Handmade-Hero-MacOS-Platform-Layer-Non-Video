@@ -103,13 +103,11 @@ OSStatus circularBufferRenderCallback(void *inRefCon,
                                       uint32 inNumberFrames,
                                       AudioBufferList *ioData) {
     
-    int16* leftChannel = (int16*)ioData->mBuffers[0].mData;
-    int16* rightChannel= (int16*)ioData->mBuffers[1].mData;
+    int16* channel = (int16*)ioData->mBuffers[0].mData;
 
     for (uint32 i = 0; i < inNumberFrames; ++i) {
-        int16 *output = soundOutput.readCursor++;
-        leftChannel[i] = *output;
-        rightChannel[i] = *output;
+        *channel++ = *soundOutput.readCursor++;
+        *channel++ = *soundOutput.readCursor++;
 
         if ((char *)soundOutput.readCursor >= (char *)((char *)soundOutput.coreAudioBuffer + soundOutput.bufferSize)) {
             soundOutput.readCursor = soundOutput.coreAudioBuffer;
@@ -126,7 +124,7 @@ void macOSInitSound() {
   
     //Create a two second circular buffer 
     soundOutput.samplesPerSecond = 48000; 
-    soundOutput.bufferSize = soundOutput.samplesPerSecond * sizeof(int16) * 2;
+    soundOutput.bufferSize = soundOutput.samplesPerSecond * sizeof(int16) * 4;
 
     uint32 maxPossibleOverrun = 8 * 2 * sizeof(int16);
 
@@ -172,10 +170,10 @@ void macOSInitSound() {
     audioDescriptor.mSampleRate = soundOutput.samplesPerSecond;
     audioDescriptor.mFormatID = kAudioFormatLinearPCM;
     audioDescriptor.mFormatFlags = kAudioFormatFlagIsSignedInteger | 
-                                   kAudioFormatFlagIsNonInterleaved | 
                                    kAudioFormatFlagIsPacked; 
+
     int framesPerPacket = 1;
-    int bytesPerFrame = sizeof(int16);
+    int bytesPerFrame = sizeof(int16) * 2;
     audioDescriptor.mFramesPerPacket = framesPerPacket;
     audioDescriptor.mChannelsPerFrame = 2; // Stereo sound
     audioDescriptor.mBitsPerChannel = sizeof(int16) * 8;
@@ -218,7 +216,7 @@ void macOSInitSound() {
 internal_usage
 void updateSoundBuffer() {
   
-    int sampleCount = 3200;
+    int sampleCount = 1600;
  
     //note: (ted) - This is where we would usually get sound samples
     uint32 frequency = 256;
@@ -238,7 +236,7 @@ void updateSoundBuffer() {
             soundOutput.writeCursor = soundOutput.coreAudioBuffer;
         }
 
-        if ((char *)soundOutput.writeCursor == ((char *)soundOutput.readCursor - sizeof(int16))) {
+        if ((char *)soundOutput.writeCursor == ((char *)soundOutput.readCursor - (2 * sizeof(int16)))) {
             break;
         }
 
@@ -250,6 +248,7 @@ void updateSoundBuffer() {
             sampleValue = -5000;
         }
 
+        *soundOutput.writeCursor++ = sampleValue;
         *soundOutput.writeCursor++ = sampleValue;
         runningSampleIndex++; 
     }
