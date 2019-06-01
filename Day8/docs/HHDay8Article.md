@@ -46,4 +46,40 @@ On Casey's series, DirectSound gives him two regions to write sound output to. I
 
 The MacOS Core Audio api works differently. Instead of being given the two regions, you simply provide a sound output render callback that the system calls into with a given set of audio frames it intends to render. Core Audio doesn't care if you've setup a circular buffer, nor does it care where your read or write cursors happen to be. You have to handle all of that yourself.
 
+### Setting up the Core Audio Sound Output Buffer
+Go to the top of the osx_main.mm file and paste the following code near the other global variables to initialize the Sound Output Buffer. 
 
+'''Objective-C++
+global_variable MacOSSoundOutput soundOutput = {};
+'''
+
+Now go to the top of the macOSInitSound function. We're going to setup the circular audio buffer along with its read and write cursors.
+
+First, you want to set the samples per second. Earlier, this was a global const varible, but now we're going to move it to the SoundOutput object.
+
+Paste the following code at the top of macOSInitSound()
+
+'''Objective-C++
+soundOutput.samplesPerSecond = 48000; 
+'''
+
+Now change the audioDescriptor so it uses the samplesPerSecond from the soundOutput struct instead of the previous global constant. Here is what the change looks like.
+
+'''Objective-C++
+AudioStreamBasicDescription audioDescriptor;
+audioDescriptor.mSampleRate = soundOutput.samplesPerSecond;
+audioDescriptor.mFormatID = kAudioFormatLinearPCM;
+audioDescriptor.mFormatFlags = kAudioFormatFlagIsSignedInteger | 
+                               kAudioFormatFlagIsPacked; 
+'''  
+
+#### Calculating the sound buffer size
+We are going to create a two second sound buffer with interleaved linear PCM sound data, just as Casey does in his stream. So the size of the sound buffer is the number of samples per second times the size of a single sample (two 16 bit signed integers representing the left and right audio channels) times the number of seconds (2).
+
+Paste the following lines of code right after the place where you set the soundOutput's samplesPerSecond property.
+
+'''Objective-C++
+int audioFrameSize = sizeof(int16) * 2;
+int numberOfSeconds = 2; 
+soundOutput.bufferSize = soundOutput.samplesPerSecond * audioFrameSize * numberOfSeconds;
+'''

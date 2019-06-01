@@ -124,12 +124,12 @@ void macOSInitSound() {
   
     //Create a two second circular buffer 
     soundOutput.samplesPerSecond = 48000; 
-    soundOutput.bufferSize = soundOutput.samplesPerSecond * sizeof(int16) * 4;
-
-    uint32 maxPossibleOverrun = 8 * 2 * sizeof(int16);
+    int audioFrameSize = sizeof(int16) * 2;
+    int numberOfSeconds = 2; 
+    soundOutput.bufferSize = soundOutput.samplesPerSecond * audioFrameSize * numberOfSeconds;
 
     soundOutput.coreAudioBuffer = (int16*)mmap(0,
-                                               soundOutput.bufferSize + maxPossibleOverrun,
+                                               soundOutput.bufferSize,
                                                PROT_READ|PROT_WRITE,
                                                MAP_PRIVATE|MAP_ANON,
                                                -1,

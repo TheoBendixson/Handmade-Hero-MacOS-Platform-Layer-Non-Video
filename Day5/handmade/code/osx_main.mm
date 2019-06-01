@@ -4,12 +4,9 @@
 // OSX Main
 
 #include "handmade_types.h"
-#include "osx_main.h"
-#include "osx_handmade_windows.h"
-
 #include <AppKit/AppKit.h>
 
-bool running = true;
+global_variable bool running = true;
 
 global_variable float globalRenderWidth = 1024;
 global_variable float globalRenderHeight = 768;
@@ -90,6 +87,22 @@ void macOSRedrawBuffer(NSWindow *window) {
         window.contentView.layer.contents = image;
     }
 }
+
+@interface HandmadeMainWindowDelegate: NSObject<NSWindowDelegate>
+@end
+
+@implementation HandmadeMainWindowDelegate 
+- (void)windowWillClose:(id)sender {
+    running = false;  
+}
+
+- (void)windowDidResize:(NSNotification *)notification {
+    NSWindow *window = (NSWindow*)notification.object;
+    macOSRefreshBuffer(window);
+    renderWeirdGradient();
+    macOSRedrawBuffer(window);
+}
+@end
 
 int main(int argc, const char * argv[]) {
 
