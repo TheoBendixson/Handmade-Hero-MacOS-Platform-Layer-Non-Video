@@ -20,9 +20,7 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXFileReference section */
-		AC47639E2251AB00003F0DCB /* osx_handmade_controllers.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = osx_handmade_controllers.m; path = ../code/osx_handmade_controllers.m; sourceTree = "<group>"; };
 		AC6A3FF7221A34060063ADBA /* osx_main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = osx_main.mm; path = ../code/osx_main.mm; sourceTree = "<group>"; };
-		AC925F6A2281C452007EE24D /* osx_handmade_windows.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = osx_handmade_windows.mm; path = ../code/osx_handmade_windows.mm; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -30,8 +28,6 @@
 			isa = PBXGroup;
 			children = (
 				AC6A3FF7221A34060063ADBA /* osx_main.mm */,
-				AC47639E2251AB00003F0DCB /* osx_handmade_controllers.m */,
-				AC925F6A2281C452007EE24D /* osx_handmade_windows.mm */,
 			);
 			sourceTree = "<group>";
 		};
