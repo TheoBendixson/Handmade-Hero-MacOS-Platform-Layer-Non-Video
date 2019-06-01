@@ -260,7 +260,7 @@ for (uint32 i = 0; i < inNumberFrames; i++) {
 }
 '''
 
-Now we just need to write to the two channels. We want to go for half of the period writing the max value to the buffer (5000 so we don't blow out our ears!), then switch to the opposite of that value for another half of 256, writing -5000 to create the troughs.
+Now we just need to write to the two audio channels. We want to go for half of the period writing the max value to the buffer (5000 so we don't blow out our ears!), then switch to the opposite of that value for another half of 256, writing -5000 to create the troughs.
 
 Presumably, we'll just keep switching like this until we run out of frames to write. Then we'll do the same thing all over again the next time the system makes this call.
 
