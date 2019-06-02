@@ -3,8 +3,9 @@
 
 struct MacOSSoundOutput {
     int samplesPerSecond; 
+    int bytesPerSample;
     uint32 bufferSize;
-    int16* coreAudioBuffer;
-    int16* readCursor;
-    int16* writeCursor;
+    uint32 writeCursor;
+    uint32 playCursor;
+    void *data;
 };
