@@ -1,17 +1,12 @@
 #import "handmade_types.h"
-#import "AppKit/Appkit.h"
+#import <AppKit/AppKit.h>
 
-struct MacOSSoundBuffer {
+struct MacOSSoundOutput {
     int samplesPerSecond; 
-    int sampleCount;
-    int16* samples; 
     uint32 bufferSize;
+    uint32 tonehz;
+    int bytesPerSample;
     int16* coreAudioBuffer;
     int16* readCursor;
     int16* writeCursor;
 };
-
-extern bool running;
-void macOSRefreshBuffer(NSWindow *window);
-void renderWeirdGradient();
-void macOSRedrawBuffer(NSWindow *window);
