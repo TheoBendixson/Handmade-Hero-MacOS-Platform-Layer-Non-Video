@@ -403,17 +403,28 @@ OSStatus circularBufferRenderCallback(void *inRefCon,
                                       uint32 inBusNumber,
                                       uint32 inNumberFrames,
                                       AudioBufferList *ioData) {
-    
-    int16* channel = (int16*)ioData->mBuffers[0].mData;
+  
+    int length = inNumberFrames * soundOutput.bytesPerSample; 
+    uint32 region1Size = length;
+    uint32 region2Size = 0;
 
-    for (uint32 i = 0; i < inNumberFrames; ++i) {
-        *channel++ = *soundOutput.readCursor++;
-        *channel++ = *soundOutput.readCursor++;
+    if (soundOutput.playCursor + length > soundOutput.bufferSize) {
+        region1Size = soundOutput.bufferSize - soundOutput.playCursor;
+        region2Size = length - region1Size;
+    } 
+   
+    uint8* channel = (uint8*)ioData->mBuffers[0].mData;
 
-        if ((char *)soundOutput.readCursor >= (char *)((char *)soundOutput.coreAudioBuffer + soundOutput.bufferSize)) {
-            soundOutput.readCursor = soundOutput.coreAudioBuffer;
-        }
-    }
+    memcpy(channel, 
+           (uint8*)soundOutput.data + soundOutput.playCursor, 
+           region1Size);
+
+    memcpy(&channel[region1Size],
+           soundOutput.data,
+           region2Size);
+
+    soundOutput.playCursor = (soundOutput.playCursor + length) % soundOutput.bufferSize;
+    soundOutput.writeCursor = (soundOutput.playCursor + 2048) % soundOutput.bufferSize;
 
     return noErr;
 }
@@ -425,31 +436,13 @@ void macOSInitSound() {
   
     //Create a two second circular buffer 
     soundOutput.samplesPerSecond = 48000; 
-    soundOutput.tonehz = 256;
-    soundOutput.bytesPerSample = 2 * sizeof(int16); 
+    soundOutput.frequency = 256; 
     int audioFrameSize = sizeof(int16) * 2;
     int numberOfSeconds = 2; 
+    soundOutput.bytesPerSample = audioFrameSize; 
     soundOutput.bufferSize = soundOutput.samplesPerSecond * audioFrameSize * numberOfSeconds;
-
-    soundOutput.coreAudioBuffer = (int16*)mmap(0,
-                                               soundOutput.bufferSize,
-                                               PROT_READ|PROT_WRITE,
-                                               MAP_PRIVATE|MAP_ANON,
-                                               -1,
-                                               0);
- 
-    //todo: (ted) better error handling 
-    if (soundOutput.coreAudioBuffer == MAP_FAILED) {
-        NSLog(@"Core Audio Buffer mmap error");
-        return;
-    }
-
-    memset(soundOutput.coreAudioBuffer,
-           0,
-           soundOutput.bufferSize);
-
-    soundOutput.readCursor = soundOutput.coreAudioBuffer;
-    soundOutput.writeCursor = soundOutput.coreAudioBuffer;
+    soundOutput.data = malloc(soundOutput.bufferSize);
+    soundOutput.playCursor = soundOutput.writeCursor = 0;
 
     AudioComponentDescription acd;
     acd.componentType = kAudioUnitType_Output;
@@ -518,39 +511,68 @@ void macOSInitSound() {
 
 internal_usage
 void updateSoundBuffer() {
-
-    int latencySampleCount = 48000/15; 
- 
-    int sampleCount = 1600;
  
     //note: (ted) - This is where we would usually get sound samples
-    uint32 period = soundOutput.samplesPerSecond/soundOutput.tonehz; 
+    uint32 period = soundOutput.samplesPerSecond/soundOutput.frequency; 
     uint32 halfPeriod = period/2;
     local_persist uint32 runningSampleIndex = 0;
 
-    for (int i = 0; i < sampleCount; ++i) {
+    int latencySampleCount = soundOutput.samplesPerSecond / 15;
+    int targetQueueBytes = latencySampleCount * soundOutput.bytesPerSample;
+   
+    int targetCursor = ((soundOutput.playCursor +
+                        (latencySampleCount*soundOutput.bytesPerSample)) %
+                        soundOutput.bufferSize);
+ 
+    //Lock Here
+    int byteToLock = (runningSampleIndex*soundOutput.bytesPerSample) % soundOutput.bufferSize; 
+    int bytesToWrite;
 
-        //Write cursor wrapped. Start at the beginning of the Core Audio Buffer.
-        if ((char *)soundOutput.writeCursor >= ((char *)soundOutput.coreAudioBuffer + soundOutput.bufferSize)) {
-            
-            if (soundOutput.readCursor == soundOutput.coreAudioBuffer) {
-                break;
-            }
+    if (byteToLock == targetCursor) { 
+        bytesToWrite = soundOutput.bufferSize; 
+    } else if (byteToLock > targetCursor) {
+        bytesToWrite = (soundOutput.bufferSize - byteToLock);
+        bytesToWrite += targetCursor;
+    } else {
+        bytesToWrite = targetCursor - byteToLock;
+    }
 
-            soundOutput.writeCursor = soundOutput.coreAudioBuffer;
-        }
+    void *region1 = (uint8*)soundOutput.data + byteToLock;
+    int region1Size = bytesToWrite;
+    
+    if (region1Size + byteToLock > soundOutput.bufferSize) {
+        region1Size = soundOutput.bufferSize - byteToLock;
+    }
 
-        if ((char *)soundOutput.writeCursor == ((char *)soundOutput.readCursor - (2 * sizeof(int16)))) {
-            break;
-        }
+    void *region2 = soundOutput.data;
+    int region2Size = bytesToWrite - region1Size;
 
+    int region1SampleCount = region1Size/soundOutput.bytesPerSample;
+    int16* sampleOut = (int16*)region1;
+
+    for (int sampleIndex = 0;
+         sampleIndex < region1SampleCount;
+         ++sampleIndex) {
         float t = ((float)runningSampleIndex / (float)period) * 2*M_PI;
         float sineValue = sinf(t);
         int16 sampleValue = (int16)(sineValue * 5000);
+        *sampleOut++ = sampleValue;
+        *sampleOut++ = sampleValue;
+        runningSampleIndex++;
+    }
 
-        *soundOutput.writeCursor++ = sampleValue;
-        *soundOutput.writeCursor++ = sampleValue;
-        runningSampleIndex++; 
+    int region2SampleCount = region2Size/soundOutput.bytesPerSample;
+    sampleOut = (int16*)region2;
+   
+    for (int sampleIndex = 0;
+         sampleIndex < region2SampleCount;
+         ++sampleIndex) {
+        float t = ((float)runningSampleIndex / (float)period) * 2*M_PI;
+        float sineValue = sinf(t);
+        int16 sampleValue = (int16)(sineValue * 5000);
+        *sampleOut++ = sampleValue;
+        *sampleOut++ = sampleValue;
+        runningSampleIndex++;
     }
 }
 
@@ -594,6 +616,7 @@ int main(int argc, const char * argv[]) {
         
         if(controller != nil){
             if(controller.buttonAState == true) {
+                soundOutput.frequency = 512; 
                 offsetX++;       
             }
 
