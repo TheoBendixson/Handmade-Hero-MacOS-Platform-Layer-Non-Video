@@ -436,7 +436,9 @@ void macOSInitSound() {
   
     //Create a two second circular buffer 
     soundOutput.samplesPerSecond = 48000; 
-    soundOutput.frequency = 256; 
+    soundOutput.toneHz = 256; 
+    soundOutput.tSine = 0.0f;
+    soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
     int audioFrameSize = sizeof(int16) * 2;
     int numberOfSeconds = 2; 
     soundOutput.bytesPerSample = audioFrameSize; 
@@ -513,8 +515,7 @@ internal_usage
 void updateSoundBuffer() {
  
     //note: (ted) - This is where we would usually get sound samples
-    uint32 period = soundOutput.samplesPerSecond/soundOutput.frequency; 
-    uint32 halfPeriod = period/2;
+    uint32 period = soundOutput.samplesPerSecond/soundOutput.toneHz; 
     local_persist uint32 runningSampleIndex = 0;
 
     int latencySampleCount = soundOutput.samplesPerSecond / 15;
@@ -553,11 +554,11 @@ void updateSoundBuffer() {
     for (int sampleIndex = 0;
          sampleIndex < region1SampleCount;
          ++sampleIndex) {
-        float t = ((float)runningSampleIndex / (float)period) * 2*M_PI;
-        float sineValue = sinf(t);
+        real32 sineValue = sinf(soundOutput.tSine); 
         int16 sampleValue = (int16)(sineValue * 5000);
         *sampleOut++ = sampleValue;
         *sampleOut++ = sampleValue;
+        soundOutput.tSine += 2.0f * M_PI * 1.0f/(real32)soundOutput.wavePeriod;
         runningSampleIndex++;
     }
 
@@ -567,11 +568,11 @@ void updateSoundBuffer() {
     for (int sampleIndex = 0;
          sampleIndex < region2SampleCount;
          ++sampleIndex) {
-        float t = ((float)runningSampleIndex / (float)period) * 2*M_PI;
-        float sineValue = sinf(t);
+        real32 sineValue = sinf(soundOutput.tSine); 
         int16 sampleValue = (int16)(sineValue * 5000);
         *sampleOut++ = sampleValue;
         *sampleOut++ = sampleValue;
+        soundOutput.tSine += 2.0f * M_PI * 1.0f/(real32)soundOutput.wavePeriod;
         runningSampleIndex++;
     }
 }
@@ -616,7 +617,8 @@ int main(int argc, const char * argv[]) {
         
         if(controller != nil){
             if(controller.buttonAState == true) {
-                soundOutput.frequency = 512; 
+                soundOutput.toneHz = 512; 
+                soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
                 offsetX++;       
             }
 
