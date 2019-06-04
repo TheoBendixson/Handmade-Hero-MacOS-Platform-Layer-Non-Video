@@ -117,17 +117,21 @@ void macOSRedrawBuffer(NSWindow *window) {
 
 @interface OSXHandmadeController: NSObject
 
-//D-Pad
+//  Analog Stick
+@property float leftThumbstickX;
+@property float leftThumbstickY;
+
+//  D-Pad
 @property NSInteger dpadX;
 @property NSInteger dpadY;
 
-//ABXY
+//  ABXY
 @property BOOL buttonAState;
 @property BOOL buttonBState;
 @property BOOL buttonXState;
 @property BOOL buttonYState;
 
-//Shoulder Buttons
+//  Shoulder Buttons
 @property BOOL buttonLeftShoulderState;
 @property BOOL buttonRightShoulderState;
 
@@ -139,19 +143,25 @@ global_variable OSXHandmadeController *keyboardController = nil;
 
 @implementation OSXHandmadeController {
 
-    //D-Pad    
+    bool _usesHatSwitch;
+
+    //  Left Thumb Stick
+    CFIndex _lThumbXUsageID;
+    CFIndex _lThumbYUsageID;
+
+    //  D-Pad    
 	CFIndex _dpadLUsageID;
 	CFIndex _dpadRUsageID;
 	CFIndex _dpadDUsageID;
 	CFIndex _dpadUUsageID;
 
-    //ABXY    
+    //  ABXY    
 	CFIndex _buttonAUsageID;
 	CFIndex _buttonBUsageID;
 	CFIndex _buttonXUsageID;
 	CFIndex _buttonYUsageID;
 	
-    //Shoulder Buttons  
+    //  Shoulder Buttons  
     CFIndex _lShoulderUsageID;
 	CFIndex _rShoulderUsageID;
 }
@@ -326,6 +336,13 @@ static void controllerConnected(void *context,
     
     if(vendorID == 0x054C && productID == 0x5C4) {
         NSLog(@"Sony Dualshock 4 detected.");
+
+        //  Left Thumb Stick       
+        controller->_lThumbXUsageID = kHIDUsage_GD_X;
+        controller->_lThumbYUsageID = kHIDUsage_GD_Y;
+
+        controller->_usesHatSwitch = true;
+ 
         controller->_buttonAUsageID = 0x02;
         controller->_buttonBUsageID = 0x03;
         controller->_buttonXUsageID = 0x01;
@@ -370,26 +387,39 @@ static void controllerInput(void *context,
     }
 
     //dPad
-    else if(usagePage == kHIDPage_GenericDesktop && usage == kHIDUsage_GD_Hatswitch) {
-        int dpadState = (int)IOHIDValueGetIntegerValue(value);
-        NSInteger dpadX = 0;
-        NSInteger dpadY = 0;
+    else if(usagePage == kHIDPage_GenericDesktop) {
 
-        switch(dpadState) {
-            case 0: dpadX = 0; dpadY = 1; break;
-            case 1: dpadX = 1; dpadY = 1; break;
-            case 2: dpadX = 1; dpadY = 0; break;
-            case 3: dpadX = 1; dpadY = -1; break;
-            case 4: dpadX = 0; dpadY = -1; break;
-            case 5: dpadX = -1; dpadY = -1; break;
-            case 6: dpadX = -1; dpadY = 0; break;
-            case 7: dpadX = -1; dpadY = 1; break;
-            default: dpadX = 0; dpadY = 0; break;
+        float analog = IOHIDValueGetScaledValue(value, kIOHIDValueScaleTypeCalibrated);
 
+        if (usage == controller->_lThumbXUsageID) {
+            controller->_leftThumbstickX = analog;
         }
 
-        controller->_dpadX = dpadX;
-        controller->_dpadY = dpadY; 
+        if (usage == controller->_lThumbYUsageID) {
+            controller->_leftThumbstickY = analog;
+        }
+
+        if(usage == kHIDUsage_GD_Hatswitch) { 
+            int dpadState = (int)IOHIDValueGetIntegerValue(value);
+            NSInteger dpadX = 0;
+            NSInteger dpadY = 0;
+
+            switch(dpadState) {
+                case 0: dpadX = 0; dpadY = 1; break;
+                case 1: dpadX = 1; dpadY = 1; break;
+                case 2: dpadX = 1; dpadY = 0; break;
+                case 3: dpadX = 1; dpadY = -1; break;
+                case 4: dpadX = 0; dpadY = -1; break;
+                case 5: dpadX = -1; dpadY = -1; break;
+                case 6: dpadX = -1; dpadY = 0; break;
+                case 7: dpadX = -1; dpadY = 1; break;
+                default: dpadX = 0; dpadY = 0; break;
+
+            }
+
+            controller->_dpadX = dpadX;
+            controller->_dpadY = dpadY; 
+        }
     }
 }
 
@@ -515,7 +545,6 @@ internal_usage
 void updateSoundBuffer() {
  
     //note: (ted) - This is where we would usually get sound samples
-    uint32 period = soundOutput.samplesPerSecond/soundOutput.toneHz; 
     local_persist uint32 runningSampleIndex = 0;
 
     int latencySampleCount = soundOutput.samplesPerSecond / 15;
@@ -645,6 +674,9 @@ int main(int argc, const char * argv[]) {
             if (controller.dpadY == -1) {
                 offsetY--;
             }
+
+            soundOutput.toneHz = 512 + (int)(controller.leftThumbstickY * 10.0f);
+            soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
         }
 
         NSEvent* event;
