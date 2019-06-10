@@ -6,9 +6,11 @@ OSX_LD_FLAGS="-framework AppKit
 
 HANDMADE_RESOURCES_PATH="../handmade/resources/"
 
+HANDMADE_CODE_PATH="../handmade/cpp/code"
+
 mkdir ../../build
 pushd ../../build
-clang -g $OSX_LD_FLAGS -o handmade "../handmade/code/osx_main.mm" 
+clang -g $OSX_LD_FLAGS -o handmade ${HANDMADE_CODE_PATH}/"handmade.cpp" "../handmade/code/osx_main.mm" 
 rm -rf handmade.app
 mkdir handmade.app
 cp handmade handmade.app/handmade

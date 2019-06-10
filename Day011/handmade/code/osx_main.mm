@@ -10,13 +10,12 @@
 #import <AudioToolbox/AudioToolbox.h>
 #include <mach/mach_init.h>
 #include <mach/mach_time.h>
+#include "../cpp/code/handmade.cpp"
 
 global_variable float globalRenderWidth = 1024;
 global_variable float globalRenderHeight = 768;
 
-global_variable uint8 *buffer;
-global_variable int bitmapWidth;
-global_variable int bitmapHeight;
+global_variable game_offscreen_buffer buffer = {};
 global_variable int bytesPerPixel = 4;
 global_variable int pitch;
 
@@ -25,69 +24,34 @@ global_variable int offsetY = 0;
 
 global_variable bool running = true;
 
-void macOSRefreshBuffer(NSWindow *window) {
+void macOSRefreshBuffer(NSWindow *window,
+                        game_offscreen_buffer *buffer) {
 
-    if (buffer) {
-        free(buffer);
+    if (buffer->memory) {
+        free(buffer->memory);
     }
 
-    bitmapWidth = window.contentView.bounds.size.width;
-    bitmapHeight = window.contentView.bounds.size.height;
-    pitch = bitmapWidth * bytesPerPixel;
-    buffer = (uint8 *)malloc(pitch * bitmapHeight);
-}
-
-void renderWeirdGradient() {
-
-    int width = bitmapWidth;
-    int height = bitmapHeight;
-
-    uint8 *row = (uint8 *)buffer;
-
-    for ( int y = 0; y < height; ++y) {
-
-        uint8 *pixel = (uint8 *)row;
-
-        for(int x = 0; x < width; ++x) {
-            
-            /*  Pixel in memory: RR GG BB AA */
-
-            //Red            
-            *pixel = 0; 
-            ++pixel;  
-
-            //Green
-            *pixel = (uint8)y+(uint8)offsetY;
-            ++pixel;
-
-            //Blue
-            *pixel = (uint8)x+(uint8)offsetX;
-            ++pixel;
-
-            //Alpha
-            *pixel = 255;
-            ++pixel;          
-        }
-
-        row += pitch;
-    }
-
+    buffer->width = window.contentView.bounds.size.width;
+    buffer->height = window.contentView.bounds.size.height;
+    buffer->pitch = buffer->width * bytesPerPixel;
+    buffer->memory = (uint8 *)malloc(buffer->pitch * buffer->height);
 }
 
 void macOSRedrawBuffer(NSWindow *window) {
     @autoreleasepool {
-        NSBitmapImageRep *rep = [[[NSBitmapImageRep alloc] initWithBitmapDataPlanes: &buffer 
-                                  pixelsWide: bitmapWidth
-                                  pixelsHigh: bitmapHeight
+        uint8* plane = (uint8*)buffer.memory;
+        NSBitmapImageRep *rep = [[[NSBitmapImageRep alloc] initWithBitmapDataPlanes: &plane 
+                                  pixelsWide: buffer.width
+                                  pixelsHigh: buffer.height
                                   bitsPerSample: 8
                                   samplesPerPixel: 4
                                   hasAlpha: YES
                                   isPlanar: NO
                                   colorSpaceName: NSDeviceRGBColorSpace
-                                  bytesPerRow: pitch
+                                  bytesPerRow: buffer.pitch
                                   bitsPerPixel: bytesPerPixel * 8] autorelease];
 
-        NSSize imageSize = NSMakeSize(bitmapWidth, bitmapHeight);
+        NSSize imageSize = NSMakeSize(buffer.width, buffer.height);
         NSImage *image = [[[NSImage alloc] initWithSize: imageSize] autorelease];
         [image addRepresentation: rep];
         window.contentView.layer.contents = image;
@@ -104,8 +68,8 @@ void macOSRedrawBuffer(NSWindow *window) {
 
 - (void)windowDidResize:(NSNotification *)notification {
     NSWindow *window = (NSWindow*)notification.object;
-    macOSRefreshBuffer(window);
-    renderWeirdGradient();
+    macOSRefreshBuffer(window, &buffer);
+    gameUpdateAndRender(&buffer, offsetX, offsetY); 
     macOSRedrawBuffer(window);
 }
 @end
@@ -634,7 +598,7 @@ int main(int argc, const char * argv[]) {
     [window setDelegate: mainWindowDelegate];
     window.contentView.wantsLayer = YES;
  
-    macOSRefreshBuffer(window);
+    macOSRefreshBuffer(window, &buffer);
     macOSInitGameControllers(); 
     macOSInitSound();
 
@@ -643,8 +607,8 @@ int main(int argc, const char * argv[]) {
     real32 frameTime = 0.0f; 
  
     while(running) {
-   
-        renderWeirdGradient();
+  
+        gameUpdateAndRender(&buffer, offsetX, offsetY); 
         macOSRedrawBuffer(window); 
         updateSoundBuffer();
 
