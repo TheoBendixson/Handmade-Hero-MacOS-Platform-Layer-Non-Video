@@ -3,14 +3,12 @@
 //
 // OSX Main
 
-#import "handmade_types.h"
-#import "osx_main.h"
+#include "osx_main.h"
 #import <AppKit/AppKit.h>
 #import <IOKit/hid/IOHIDLib.h>
 #import <AudioToolbox/AudioToolbox.h>
 #include <mach/mach_init.h>
 #include <mach/mach_time.h>
-#include "../cpp/code/handmade.cpp"
 
 global_variable float globalRenderWidth = 1024;
 global_variable float globalRenderHeight = 768;

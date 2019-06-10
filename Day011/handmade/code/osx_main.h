@@ -1,4 +1,4 @@
-#import "handmade_types.h"
+#include "../cpp/code/handmade.cpp"
 #import <AppKit/AppKit.h>
 
 struct MacOSSoundOutput {
