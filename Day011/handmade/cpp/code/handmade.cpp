@@ -33,7 +33,7 @@ static void gameUpdateAndRender(game_offscreen_buffer *buffer,
             ++pixel;  
 
             //Green
-            *pixel = (uint8_t)y+(uint8_t)greenOffset;;
+            *pixel = (uint8_t)y+(uint8_t)greenOffset;
             ++pixel;
 
             //Blue
