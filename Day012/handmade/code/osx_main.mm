@@ -424,7 +424,6 @@ void macOSInitSound() {
     //Create a two second circular buffer 
     soundOutput.samplesPerSecond = 48000; 
     soundOutput.toneHz = 256; 
-    soundOutput.tSine = 0.0f;
     soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
     soundOutput.runningSampleIndex = 0;
     int audioFrameSize = sizeof(int16) * 2;
@@ -568,7 +567,10 @@ int main(int argc, const char * argv[]) {
     uint64 currentTime = mach_absolute_time();
     uint64 lastCounter = currentTime;
     real32 frameTime = 0.0f; 
- 
+
+    int16 *samples = (int16*)calloc(soundOutput.samplesPerSecond,
+                                    soundOutput.bytesPerSample); 
+
     int latencySampleCount = soundOutput.samplesPerSecond / 15;
     int targetQueueBytes = latencySampleCount * soundOutput.bytesPerSample;
 
@@ -578,7 +580,6 @@ int main(int argc, const char * argv[]) {
                     (latencySampleCount*soundOutput.bytesPerSample)) %
                 soundOutput.bufferSize);
 
-        //Lock Here
         int byteToLock = (soundOutput.runningSampleIndex*soundOutput.bytesPerSample) % soundOutput.bufferSize; 
         int bytesToWrite;
 
@@ -589,15 +590,10 @@ int main(int argc, const char * argv[]) {
             bytesToWrite = targetCursor - byteToLock;
         }
 
-        int16 samples[48000 * 2];
         game_sound_output_buffer soundBuffer = {};
         soundBuffer.samplesPerSecond = soundOutput.samplesPerSecond;
         soundBuffer.sampleCount = bytesToWrite / soundOutput.bytesPerSample;
         soundBuffer.samples = samples;
-
-        if (soundBuffer.sampleCount == (int)96000) {
-            NSLog(@"Sample Count is Too large");
-        }
 
         gameUpdateAndRender(&buffer, offsetX, offsetY, &soundBuffer, soundOutput.toneHz); 
         macOSFillSoundBuffer(byteToLock, bytesToWrite, &soundBuffer);

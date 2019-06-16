@@ -7,7 +7,6 @@ struct MacOSSoundOutput {
     int toneHz;
     int wavePeriod;
     uint32 runningSampleIndex;
-    real32 tSine;
     uint32 bufferSize;
     uint32 writeCursor;
     uint32 playCursor;
