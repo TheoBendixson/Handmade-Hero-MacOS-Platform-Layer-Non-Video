@@ -572,7 +572,7 @@ int main(int argc, const char * argv[]) {
 
 #if HANDMADE_INTERNAL
     // TODO: (ted)  Investigate base-address for Apple platforms.
-    char* baseAddress = (char*)Gigabytes((uint64)8);
+    char* baseAddress = (char*)Gigabytes(8);
     uint32 allocationFlags = MAP_PRIVATE | MAP_ANON | MAP_FIXED;
 #else
     void* baseAddress = 0;
@@ -581,7 +581,7 @@ int main(int argc, const char * argv[]) {
 
     game_memory gameMemory = {};
     gameMemory.permanentStorageSize = Megabytes(64);
-    gameMemory.transientStorageSize = Gigabytes((uint64)4);
+    gameMemory.transientStorageSize = Gigabytes(4);
 
     uint64 totalSize = gameMemory.permanentStorageSize + gameMemory.transientStorageSize;
 
