@@ -22,6 +22,65 @@ global_variable int offsetY = 0;
 
 global_variable bool running = true;
 
+#if HANDMADE_INTERNAL
+debug_read_file_result DEBUGPlatformReadEntireFile(char *filename) {
+
+    debug_read_file_result result = {};
+    result.contentsSize = 0;
+    result.contents = 0;  
+ 
+    NSString *path = [NSString stringWithUTF8String: filename];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+
+    if ([fileManager isReadableFileAtPath: path]) { 
+        NSData *fileData = [fileManager contentsAtPath: path];
+
+        if (fileData == nil) {
+            NSLog(@"Tried to load file. Contents are empty or otherwise unreadable.");
+        } else {
+            result.contentsSize = (uint32)fileData.length;
+            result.contents = (void *)fileData.bytes;
+        }
+        
+    } else {
+        NSLog(@"Tried to load file. No file at this path.");
+    } 
+
+    return result;
+}
+
+void *DEBUGPlatformFreeFileMemory(void *bitmapMemory) {
+    if (bitmapMemory) {
+        free(bitmapMemory);
+    }
+
+    return bitmapMemory;
+}
+
+bool32 DEBUGPlatformWriteEntireFile(char *filename, 
+                                    uint64 fileSize,
+                                    void *memory){ 
+
+    bool32 result = false;
+
+    NSString *path = [NSString stringWithUTF8String: filename];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    
+    NSData *fileData = [NSData dataWithBytes: memory
+                               length: fileSize];
+
+    if (fileData != nil) {
+        result = [fileManager createFileAtPath: path
+                              contents: fileData
+                              attributes: nil];
+    } else {
+        NSLog(@"No data to write to.");
+    } 
+
+    return result;
+}
+#endif
+
 // TODO: (ted)  Investigate if we really need to refresh the display buffer.
 //              It seems like it may only be necessary if the window size changed.
 void macOSRefreshBuffer(NSWindow *window,

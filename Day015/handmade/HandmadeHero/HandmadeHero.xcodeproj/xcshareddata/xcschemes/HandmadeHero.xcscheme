@@ -44,7 +44,7 @@
       allowLocationSimulation = "YES">
       <PathRunnable
          runnableDebuggingMode = "0"
-         FilePath = "/Users/theodorebendixson1/AppDevelopment/PersonalProjects/HandmadeGameTutorialsOSX/Day014/build/handmade.app">
+         FilePath = "/Users/theodorebendixson/Development/SideProjects/Handmade-Hero-MacOS-Platform-Layer-Tutorials/Day015/build/handmade.app">
       </PathRunnable>
       <MacroExpansion>
          <BuildableReference
