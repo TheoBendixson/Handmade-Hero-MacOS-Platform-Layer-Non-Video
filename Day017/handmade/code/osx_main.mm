@@ -10,9 +10,6 @@
 #include <mach/mach_init.h>
 #include <mach/mach_time.h>
 
-global_variable float globalRenderWidth = 1024;
-global_variable float globalRenderHeight = 768;
-
 global_variable int bytesPerPixel = 4;
 global_variable bool running = true;
 
@@ -131,6 +128,7 @@ void macOSRedrawBuffer(NSWindow *window,
 //  Analog Stick
 @property float leftThumbstickX;
 @property float leftThumbstickY;
+@property BOOL usesHatSwitch;
 
 //  D-Pad
 @property NSInteger dpadX;
@@ -149,12 +147,9 @@ void macOSRedrawBuffer(NSWindow *window,
 @end
 
 global_variable IOHIDManagerRef HIDManager = NULL;
-global_variable OSXHandmadeController *connectedController = nil;
-global_variable OSXHandmadeController *keyboardController = nil; 
+global_variable NSMutableArray *macOSControllers;
 
 @implementation OSXHandmadeController {
-
-    bool _usesHatSwitch;
 
     //  Left Thumb Stick
     CFIndex _lThumbXUsageID;
@@ -180,8 +175,13 @@ global_variable OSXHandmadeController *keyboardController = nil;
 static
 void macOSInitGameControllers() {
     HIDManager = IOHIDManagerCreate(kCFAllocatorDefault, 0);
-    connectedController = [[OSXHandmadeController alloc] init];
-    keyboardController = [[OSXHandmadeController alloc] init];
+    OSXHandmadeController *gamePad = [[OSXHandmadeController alloc] init];
+    OSXHandmadeController *keyboardController = [[OSXHandmadeController alloc] init];
+    [keyboardController setUsesHatSwitch: false];
+
+    macOSControllers = [[NSMutableArray alloc] init];
+    [macOSControllers addObject: keyboardController];
+    [macOSControllers addObject: gamePad];
 
     if (IOHIDManagerOpen(HIDManager, kIOHIDOptionsTypeNone) != kIOReturnSuccess) {
         NSLog(@"Error Initializing OSX Handmade Controllers");
@@ -215,6 +215,9 @@ const unsigned short rKeyCode = 0x0F;
 
 static
 void updateKeyboardControllerWith(NSEvent *event) {
+
+    OSXHandmadeController *keyboardController = [macOSControllers objectAtIndex: 0];    
+
     switch ([event type]) {
         case NSEventTypeKeyDown:
             if (event.keyCode == leftArrowKeyCode &&
@@ -345,8 +348,8 @@ static void controllerConnected(void *context,
     NSUInteger productID = [(__bridge NSNumber *)IOHIDDeviceGetProperty(device, 
                                                                         CFSTR(kIOHIDProductIDKey)) unsignedIntegerValue];
 
-    OSXHandmadeController *controller = [[OSXHandmadeController alloc] init];
-    
+    OSXHandmadeController *controller = [macOSControllers objectAtIndex: 1];    
+
     if(vendorID == 0x054C && productID == 0x5C4) {
         NSLog(@"Sony Dualshock 4 detected.");
 
@@ -370,12 +373,6 @@ static void controllerConnected(void *context,
         @{@(kIOHIDElementUsagePageKey): @(kHIDPage_GenericDesktop)},
         @{@(kIOHIDElementUsagePageKey): @(kHIDPage_Button)},
     ]);
-
-    // TODO (ted);  This is clearly problematic if you connect multiple game controllers.
-    //              They will get conflated with this single controller.
-    //
-    //              Separate this out so the game can handle multiple connected controllers.
-    connectedController = controller;
 }
 
 static void controllerInput(void *context, 
@@ -609,6 +606,9 @@ int main(int argc, const char * argv[]) {
 
     NSRect screenRect = [[NSScreen mainScreen] frame];
 
+    float globalRenderWidth = 1024;
+    float globalRenderHeight = 768;
+
     NSRect initialFrame = NSMakeRect((screenRect.size.width - globalRenderWidth) * 0.5,
                                      (screenRect.size.height - globalRenderHeight) * 0.5,
                                      globalRenderWidth,
@@ -711,14 +711,11 @@ int main(int argc, const char * argv[]) {
         newInput = oldInput;
         oldInput = temp;
 
-        // TODO (ted);  Consider replacing OSXHandmadeController with
-        //              game_controller_input
-        OSXHandmadeController *controller = connectedController;
-        
-        if(controller != nil){
+        for (int controllerIndex = 0; controllerIndex < 2; controllerIndex++) {
+            OSXHandmadeController *controller = [macOSControllers objectAtIndex: controllerIndex];
 
-            game_controller_input *oldController = &oldInput->controllers[0];
-            game_controller_input *newController = &newInput->controllers[0];
+            game_controller_input *oldController = &oldInput->controllers[controllerIndex];
+            game_controller_input *newController = &newInput->controllers[controllerIndex];
 
             macOSProcessGameControllerButton(&(oldController->a),
                                              &(newController->a),
@@ -751,15 +748,20 @@ int main(int argc, const char * argv[]) {
                 macOSProcessGameControllerButton(&(oldController->left),
                                                  &(newController->left),
                                                  false); 
-            }
-
-            if (controller.dpadX == -1) {
+            } else if (controller.dpadX == -1) {
                 macOSProcessGameControllerButton(&(oldController->right),
                                                  &(newController->right),
                                                  false); 
                 macOSProcessGameControllerButton(&(oldController->left),
                                                  &(newController->left),
                                                  true); 
+            } else if (controller.dpadX == 0) {
+                macOSProcessGameControllerButton(&(oldController->right),
+                                                 &(newController->right),
+                                                 false); 
+                macOSProcessGameControllerButton(&(oldController->left),
+                                                 &(newController->left),
+                                                 false); 
             }
 
             if (controller.dpadY == 1) {
@@ -769,35 +771,42 @@ int main(int argc, const char * argv[]) {
                 macOSProcessGameControllerButton(&(oldController->down),
                                                  &(newController->down),
                                                  false); 
-            }
-
-            if (controller.dpadY == -1) {
+            } else if (controller.dpadY == -1) {
                 macOSProcessGameControllerButton(&(oldController->up),
                                                  &(newController->up),
                                                  false); 
                 macOSProcessGameControllerButton(&(oldController->down),
                                                  &(newController->down),
                                                  true); 
+            } else if (controller.dpadY == 0) {
+                macOSProcessGameControllerButton(&(oldController->up),
+                                                 &(newController->up),
+                                                 false); 
+                macOSProcessGameControllerButton(&(oldController->down),
+                                                 &(newController->down),
+                                                 false); 
             }
 
-            newController->isAnalog = true;
+            newController->isAnalog = controller.usesHatSwitch;
             newController->startX = oldController->endX;
             newController->startY = oldController->endY;
 
-            // TODO: (ted)  The analog value returned has a range of zero to 255.
-            //              Zero to 127 means negative, and 128 to 255 means positive.
-            //
-            //              How to normalize and produce a real32 with a range of -1 to +1?
-            //              
-            //              If less than 127, subtract 127, and divide by 127.
-            //              If greater than 127, subtract from 255, divide by 127, and make positive.
-            //
-            //              Take another pass at this later and see if we could get something more
-            //              accurate.
-            newController->endX = (real32)(controller.leftThumbstickX - 127.5f)/127.5f;
-            newController->endY = (real32)(controller.leftThumbstickY - 127.5f)/127.5f;
-            newController->minX = newController->maxX = newController->endX;            
-            newController->minY = newController->maxY = newController->endY;            
+            if (newController->isAnalog) {
+                // TODO: (ted)  The analog value returned has a range of zero to 255.
+                //              Zero to 127 means negative, and 128 to 255 means positive.
+                //
+                //              How to normalize and produce a real32 with a range of -1 to +1?
+                //              
+                //              If less than 127, subtract 127, and divide by 127.
+                //              If greater than 127, subtract from 255, divide by 127, and make positive.
+                //
+                //              Take another pass at this later and see if we could get something more
+                //              accurate.
+                newController->endX = (real32)(controller.leftThumbstickX - 127.5f)/127.5f;
+                newController->endY = (real32)(controller.leftThumbstickY - 127.5f)/127.5f;
+                newController->minX = newController->maxX = newController->endX;            
+                newController->minY = newController->maxY = newController->endY;            
+            }
         }
 
         NSEvent* event;
@@ -809,7 +818,6 @@ int main(int argc, const char * argv[]) {
                                          dequeue: YES];
            
             if (event != nil &&
-                controller == keyboardController &&
                 (event.type == NSEventTypeKeyDown ||
                 event.type == NSEventTypeKeyUp)) {
                 updateKeyboardControllerWith(event);
