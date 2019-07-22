@@ -12,6 +12,7 @@
 
 global_variable int bytesPerPixel = 4;
 global_variable bool running = true;
+global_variable mach_timebase_info_data_t globalPerfCountFrequency;
 
 #if HANDMADE_INTERNAL
 debug_read_file_result DEBUGPlatformReadEntireFile(char *filename) {
@@ -600,7 +601,17 @@ macOSProcessGameControllerButton(game_button_state *oldState,
     newState->halfTransitionCount += ((newState->endedDown == oldState->endedDown)?0:1);
 }
 
+static real32
+macOSGetSecondsElapsed(uint64 start, uint64 end)
+{
+	uint64 elapsed = (end - start);
+    real32 result = (real32)(elapsed * (globalPerfCountFrequency.numer / globalPerfCountFrequency.denom)) / 1000.f / 1000.f / 1000.f;
+    return(result);
+}
+
 int main(int argc, const char * argv[]) {
+
+    mach_timebase_info(&globalPerfCountFrequency);
 
     HandmadeMainWindowDelegate *mainWindowDelegate = [[HandmadeMainWindowDelegate alloc] init];
 
@@ -678,10 +689,9 @@ int main(int argc, const char * argv[]) {
 
     int latencySampleCount = soundOutput.samplesPerSecond / 15;
 
-//    uint32 monitorRefreshHz = 60;
-//    real32 gameUpdateHz = (real32)monitorRefreshHz; 
-//    real32 targetFramesPerSecond = 30.0;
-//    real32 targetSecondsPerFrame = 1.0f/targetFramesPerSecond;
+    int monitorRefreshHz = 60;
+    real32 gameUpdateHz = (monitorRefreshHz / 2.0f);
+    real32 targetSecondsPerFrame = 1.0f / (real32)gameUpdateHz;
 
     uint64 currentTime = mach_absolute_time();
     uint64 lastCounter = currentTime;
@@ -833,40 +843,53 @@ int main(int argc, const char * argv[]) {
             }
         } while (event != nil);
 
-        uint64 endCounter = mach_absolute_time();
-    
-        mach_timebase_info_data_t tb;
 
-        uint64 elapsed = endCounter - lastCounter;
+        uint64 workCounter = mach_absolute_time();
+        real32 workSecondsElapsed = macOSGetSecondsElapsed(lastCounter, workCounter);
 
-        if (tb.denom == 0)
+        real32 secondsElapsedForFrame = workSecondsElapsed;
+        if(secondsElapsedForFrame < targetSecondsPerFrame) {
+            real32 underOffset = 3.0f / 1000.0f;
+            useconds_t SleepMS = (useconds_t)(1000.0f * 1000.0f * (targetSecondsPerFrame -
+                        secondsElapsedForFrame - underOffset));
+            if(SleepMS > 0)
+            {
+                usleep(SleepMS);
+            }
+
+            real32 testSecondsElapsedForFrame = macOSGetSecondsElapsed(lastCounter,
+                    mach_absolute_time());
+            if(testSecondsElapsedForFrame < targetSecondsPerFrame)
+            {
+                // TODO(casey): LOG MISSED SLEEP HERE
+            }
+
+            while(secondsElapsedForFrame < targetSecondsPerFrame)
+            {
+                secondsElapsedForFrame = macOSGetSecondsElapsed(lastCounter,
+                        mach_absolute_time());
+            }
+        }
+        else
         {
-            // First time we need to get the timebase
-            mach_timebase_info(&tb);
+            // TODO(casey): MISSED FRAME RATE!
+            // TODO(casey): Logging
         }
 
-        uint64 nanoseconds = elapsed * tb.numer / tb.denom;
-        real32 measuredSecondsPerUpdateAndRender = (real32)nanoseconds * 1.0E-9f;
-//        real32 measuredUpdateAndRendersPerSecond = 1 / measuredSecondsPerUpdateAndRender;
-       
-        frameTime += measuredSecondsPerUpdateAndRender;
-        lastCounter = endCounter;
+        uint64 endOfFrame = mach_absolute_time();
+        uint64 frameElapsed = endOfFrame - lastCounter;
+        uint64 frameNanoseconds = frameElapsed * globalPerfCountFrequency.numer / globalPerfCountFrequency.denom;
+
+        real32 measuredMillsecondsPerFrame = (real32)frameNanoseconds * 1.0E-6f;
+        real32 measuredSecondsPerFrame = (real32)frameNanoseconds * 1.0E-9f;
+        real32 measuredFramesPerSecond = 1.0f / measuredSecondsPerFrame;
+
+        NSLog(@"Frames Per Second %f", measuredFramesPerSecond); 
+        NSLog(@"Millseconds Per Frame %f", measuredMillsecondsPerFrame); 
+
+        frameTime += measuredSecondsPerFrame;
+        lastCounter = endOfFrame;
  
-//        NSLog(@"Frames Per Second %f", measuredUpdateAndRendersPerSecond); 
-
-        uint64 millisecondsPerUpdateAndRender = nanoseconds / 100000000;
-        uint64 targetMillisecondsPerFrame = 33;
-        uint32 remainingMillisecondsPerFrame = (uint32)targetMillisecondsPerFrame - (uint32)millisecondsPerUpdateAndRender ;
-        uint32 remainingSecondsPerFrame = remainingMillisecondsPerFrame / 1000; 
-
-        if (remainingMillisecondsPerFrame > 0) {
-            sleep(remainingSecondsPerFrame); 
-        }
-
-        //real32 framesPerSecond = measuredSecondsPerUpdateAndRender + remainingSecondsPerFrame; 
-
-        //NSLog(@"Frames Per Second:%f", framesPerSecond);
-
         macOSRedrawBuffer(window, &buffer); 
     }
  
