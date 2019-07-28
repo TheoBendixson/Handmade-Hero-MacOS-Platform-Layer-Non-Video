@@ -11,11 +11,7 @@
 #include <mach/mach_time.h>
 
 global_variable bool running = true;
-
 global_variable mach_timebase_info_data_t globalPerfCountFrequency;
-
-// TODO(ted):   Move this into main function scope. It doesn't need to be in the global scope.
-global_variable MacOSSoundOutput soundOutput = {};
 
 #if HANDMADE_INTERNAL
 debug_read_file_result DEBUGPlatformReadEntireFile(char *filename) {
@@ -90,36 +86,34 @@ macOSDebugDrawVertical(game_offscreen_buffer *buffer, int x,
 }
 
 static void
-macOSDrawSoundBufferMarker(game_offscreen_buffer *buffer, real32 c, 
-                           int padX, int top, int bottom, uint32 value, 
+macOSDrawSoundBufferMarker(game_offscreen_buffer *buffer, MacOSSoundOutput *soundOutput,
+                           real32 c, int padX, int top, int bottom, uint32 value, 
                            uint32 color, int bytesPerPixel) {
-    Assert(value < soundOutput.bufferSize);
+    Assert(value < soundOutput->bufferSize);
     real32 xReal32 = (c * (real32)value);
     int x = padX + (int)xReal32;
     macOSDebugDrawVertical(buffer, x, top, bottom, color, bytesPerPixel);
 }
 
 static void
-macOSDebugSyncDisplay(game_offscreen_buffer *buffer, int timeMarkerCount,
-                      MacOSDebugTimeMarker *timeMarkers, real32 targetSecondsPerFrame,
-                      int bytesPerPixel) {
+macOSDebugSyncDisplay(game_offscreen_buffer *buffer, MacOSSoundOutput *soundOutput,
+                      int timeMarkerCount, MacOSDebugTimeMarker *timeMarkers, 
+                      real32 targetSecondsPerFrame, int bytesPerPixel) {
     int padX = 16;
     int padY = 16;
 
     int top = padY;
     int bottom = buffer->height - padY;
 
-    real32 c = (real32)(buffer->width - 2*padX) / (real32)soundOutput.bufferSize;
+    real32 c = (real32)(buffer->width - 2*padX) / (real32)soundOutput->bufferSize;
 
     for(int markerIndex = 0; markerIndex < timeMarkerCount;
         ++markerIndex) {
         MacOSDebugTimeMarker *thisMarker = &timeMarkers[markerIndex];
-        macOSDrawSoundBufferMarker(buffer, c, padX, top, bottom, 
-                                   thisMarker->playCursor, 0xFFFFFFFF,
-                                   bytesPerPixel);
-        macOSDrawSoundBufferMarker(buffer, c, padX, top, bottom, 
-                                   thisMarker->writeCursor, 0xFF0000FF,
-                                   bytesPerPixel);
+        macOSDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
+                                   thisMarker->playCursor, 0xFFFFFFFF, bytesPerPixel);
+        macOSDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
+                                   thisMarker->writeCursor, 0xFF0000FF, bytesPerPixel);
     }
 }
 #endif
@@ -137,6 +131,7 @@ void macOSRefreshBuffer(NSWindow *window, game_offscreen_buffer *buffer,
     buffer->memory = (uint8 *)malloc((size_t)buffer->pitch * (size_t)buffer->height);
 }
 
+// TODO(ted):   A connection at Apple told me this is really inefficient. Speed up how this is done.
 void macOSRedrawBuffer(NSWindow *window, game_offscreen_buffer *buffer, int bytesPerPixel) {
     @autoreleasepool {
         uint8* plane = (uint8*)buffer->memory;
@@ -498,46 +493,49 @@ OSStatus circularBufferRenderCallback(void *inRefCon,
                                       uint32 inBusNumber,
                                       uint32 inNumberFrames,
                                       AudioBufferList *ioData) {
-  
-    uint32 length = inNumberFrames * soundOutput.bytesPerSample; 
+ 
+    MacOSSoundOutput *soundOutput = (MacOSSoundOutput*)inRefCon;
+
+    uint32 length = inNumberFrames * soundOutput->bytesPerSample; 
     uint32 region1Size = length;
     uint32 region2Size = 0;
 
-    if (soundOutput.playCursor + length > soundOutput.bufferSize) {
-        region1Size = soundOutput.bufferSize - soundOutput.playCursor;
+    if (soundOutput->playCursor + length > soundOutput->bufferSize) {
+        region1Size = soundOutput->bufferSize - soundOutput->playCursor;
         region2Size = length - region1Size;
     } 
    
     uint8* channel = (uint8*)ioData->mBuffers[0].mData;
 
     memcpy(channel, 
-           (uint8*)soundOutput.data + soundOutput.playCursor, 
+           (uint8*)soundOutput->data + soundOutput->playCursor, 
            region1Size);
 
     memcpy(&channel[region1Size],
-           soundOutput.data,
+           soundOutput->data,
            region2Size);
 
-    soundOutput.playCursor = (soundOutput.playCursor + length) % soundOutput.bufferSize;
-    soundOutput.writeCursor = (soundOutput.playCursor + length) % soundOutput.bufferSize;
+    soundOutput->playCursor = (soundOutput->playCursor + length) % soundOutput->bufferSize;
+    soundOutput->writeCursor = (soundOutput->playCursor + length) % soundOutput->bufferSize;
 
     return noErr;
 }
 
+// TODO(ted):   Investigate if this really needs to be global
 global_variable AudioComponentInstance audioUnit;
 
 internal_usage
-void macOSInitSound() {
+void macOSInitSound(MacOSSoundOutput *soundOutput) {
   
     //Create a two second circular buffer 
-    soundOutput.samplesPerSecond = 48000; 
-    soundOutput.runningSampleIndex = 0;
+    soundOutput->samplesPerSecond = 48000; 
+    soundOutput->runningSampleIndex = 0;
     uint32 audioFrameSize = sizeof(int16) * 2;
     uint32 numberOfSeconds = 2; 
-    soundOutput.bytesPerSample = audioFrameSize; 
-    soundOutput.bufferSize = soundOutput.samplesPerSecond * audioFrameSize * numberOfSeconds;
-    soundOutput.data = malloc(soundOutput.bufferSize);
-    soundOutput.playCursor = soundOutput.writeCursor = 0;
+    soundOutput->bytesPerSample = audioFrameSize; 
+    soundOutput->bufferSize = soundOutput->samplesPerSecond * audioFrameSize * numberOfSeconds;
+    soundOutput->data = malloc(soundOutput->bufferSize);
+    soundOutput->playCursor = soundOutput->writeCursor = 0;
 
     AudioComponentDescription acd;
     acd.componentType = kAudioUnitType_Output;
@@ -558,7 +556,7 @@ void macOSInitSound() {
     }
 
     AudioStreamBasicDescription audioDescriptor;
-    audioDescriptor.mSampleRate = soundOutput.samplesPerSecond;
+    audioDescriptor.mSampleRate = soundOutput->samplesPerSecond;
     audioDescriptor.mFormatID = kAudioFormatLinearPCM;
     audioDescriptor.mFormatFlags = kAudioFormatFlagIsSignedInteger | 
                                    kAudioFormatFlagIsPacked; 
@@ -586,6 +584,7 @@ void macOSInitSound() {
 
     AURenderCallbackStruct renderCallback;
     renderCallback.inputProc = circularBufferRenderCallback;
+    renderCallback.inputProcRefCon = soundOutput;
 
     status = AudioUnitSetProperty(audioUnit,
                                   kAudioUnitProperty_SetRenderCallback,
@@ -607,18 +606,19 @@ void macOSInitSound() {
 static void
 macOSFillSoundBuffer(int byteToLock,
                      int bytesToWrite,
-                     game_sound_output_buffer *soundBuffer) {
+                     game_sound_output_buffer *soundBuffer,
+                     MacOSSoundOutput *soundOutput) {
 
     int16_t *samples = soundBuffer->samples;
-    void *region1 = (uint8*)soundOutput.data + byteToLock;
+    void *region1 = (uint8*)soundOutput->data + byteToLock;
     int region1Size = bytesToWrite;
-    if (region1Size + byteToLock > soundOutput.bufferSize)
+    if (region1Size + byteToLock > soundOutput->bufferSize)
     {
-        region1Size = soundOutput.bufferSize - byteToLock;
+        region1Size = soundOutput->bufferSize - byteToLock;
     }
-    void *region2 = soundOutput.data;
+    void *region2 = soundOutput->data;
     int region2Size = bytesToWrite - region1Size;
-    int region1SampleCount = region1Size/soundOutput.bytesPerSample;
+    int region1SampleCount = region1Size/soundOutput->bytesPerSample;
     int16 *sampleOut = (int16 *)region1;
     for(int sampleIndex = 0;
         sampleIndex < region1SampleCount;
@@ -627,10 +627,10 @@ macOSFillSoundBuffer(int byteToLock,
         *sampleOut++ = *samples++;
         *sampleOut++ = *samples++;
 
-        ++soundOutput.runningSampleIndex;
+        ++soundOutput->runningSampleIndex;
     }
 
-    int region2SampleCount = region2Size/soundOutput.bytesPerSample;
+    int region2SampleCount = region2Size/soundOutput->bytesPerSample;
     sampleOut = (int16 *)region2;
     for(int sampleIndex = 0;
         sampleIndex < region2SampleCount;
@@ -638,7 +638,7 @@ macOSFillSoundBuffer(int byteToLock,
     {
         *sampleOut++ = *samples++;
         *sampleOut++ = *samples++;
-        ++soundOutput.runningSampleIndex;
+        ++soundOutput->runningSampleIndex;
     }
 } 
 
@@ -729,7 +729,9 @@ int main(int argc, const char * argv[]) {
     }
 
     macOSInitGameControllers(); 
-    macOSInitSound();
+
+    MacOSSoundOutput soundOutput = {};
+    macOSInitSound(&soundOutput);
 
     game_input input[2] = {};
     game_input *newInput = &input[0];
@@ -805,7 +807,7 @@ int main(int argc, const char * argv[]) {
         soundBuffer.samples = samples;
 
         gameUpdateAndRender(&gameMemory, newInput, &buffer, &soundBuffer); 
-        macOSFillSoundBuffer(byteToLock, bytesToWrite, &soundBuffer);
+        macOSFillSoundBuffer(byteToLock, bytesToWrite, &soundBuffer, &soundOutput);
 
         game_input *temp = newInput;
         newInput = oldInput;
@@ -976,9 +978,8 @@ int main(int argc, const char * argv[]) {
         }
 
 #if HANDMADE_INTERNAL
-        macOSDebugSyncDisplay(&buffer, debugLastTimeMarkerIndex, 
-                              debugLastTimeMarker, targetSecondsPerFrame,
-                              bytesPerPixel);
+        macOSDebugSyncDisplay(&buffer, &soundOutput, debugLastTimeMarkerIndex, 
+                              debugLastTimeMarker, targetSecondsPerFrame, bytesPerPixel);
 #endif
         macOSRedrawBuffer(window, &buffer, bytesPerPixel); 
 
