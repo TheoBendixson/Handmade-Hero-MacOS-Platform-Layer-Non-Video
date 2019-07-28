@@ -747,6 +747,9 @@ int main(int argc, const char * argv[]) {
     uint64 lastCounter = currentTime;
     real32 frameTime = 0.0f; 
 
+    uint32 lastPlayCursor = 0;
+    bool32 soundIsValid = false;
+
 #if HANDMADE_INTERNAL
     int debugLastTimeMarkerIndex = 0;
     MacOSDebugTimeMarker debugLastTimeMarker[15] = {};
@@ -776,18 +779,23 @@ int main(int argc, const char * argv[]) {
             }
         } while (event != nil);
 
-        int targetCursor = ((soundOutput.playCursor +
-                    (latencySampleCount*soundOutput.bytesPerSample)) %
-                soundOutput.bufferSize);
+        // NOTE(ted): Compute how much sound to write and where
+        int byteToLock = 0;
+        int bytesToWrite = 0;
 
-        int byteToLock = (soundOutput.runningSampleIndex*soundOutput.bytesPerSample) % soundOutput.bufferSize; 
-        int bytesToWrite;
+        if (soundIsValid) {
+            int targetCursor = ((lastPlayCursor +
+                        (latencySampleCount*soundOutput.bytesPerSample)) %
+                    soundOutput.bufferSize);
 
-         if (byteToLock > targetCursor) {
-            bytesToWrite = (soundOutput.bufferSize - byteToLock);
-            bytesToWrite += targetCursor;
-        } else {
-            bytesToWrite = targetCursor - byteToLock;
+            byteToLock = (soundOutput.runningSampleIndex*soundOutput.bytesPerSample) % soundOutput.bufferSize; 
+
+             if (byteToLock > targetCursor) {
+                bytesToWrite = (soundOutput.bufferSize - byteToLock);
+                bytesToWrite += targetCursor;
+            } else {
+                bytesToWrite = targetCursor - byteToLock;
+            }
         }
 
         game_sound_output_buffer soundBuffer = {};
@@ -956,7 +964,16 @@ int main(int argc, const char * argv[]) {
 
         frameTime += measuredSecondsPerFrame;
         lastCounter = endOfFrame;
- 
+
+        uint32 playCursor = soundOutput.playCursor;
+        uint32 writeCursor = soundOutput.writeCursor;
+        lastPlayCursor = playCursor;
+
+        if (!soundIsValid) {
+            soundOutput.runningSampleIndex = writeCursor / soundOutput.bytesPerSample;
+            soundIsValid = true;
+        }
+
 #if HANDMADE_INTERNAL
         macOSDebugSyncDisplay(&buffer, debugLastTimeMarkerIndex, 
                               debugLastTimeMarker, targetSecondsPerFrame);
@@ -966,10 +983,9 @@ int main(int argc, const char * argv[]) {
 #if HANDMADE_INTERNAL
         // NOTE(ted):   This is debug code
         {
-            MacOSDebugTimeMarker timeMarker = {};
-            timeMarker.writeCursor = soundOutput.writeCursor;
-            timeMarker.playCursor = soundOutput.playCursor;
-            debugLastTimeMarker[debugLastTimeMarkerIndex++] = timeMarker;
+            MacOSDebugTimeMarker *timeMarker = &debugLastTimeMarker[debugLastTimeMarkerIndex++];
+            timeMarker->writeCursor = writeCursor;
+            timeMarker->playCursor = playCursor;
             if(debugLastTimeMarkerIndex > ArrayCount(debugLastTimeMarker)) {
                 debugLastTimeMarkerIndex = 0;
             }
