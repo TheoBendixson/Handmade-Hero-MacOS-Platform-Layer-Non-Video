@@ -521,9 +521,6 @@ OSStatus circularBufferRenderCallback(void *inRefCon,
     return noErr;
 }
 
-// TODO(ted):   Investigate if this really needs to be global
-global_variable AudioComponentInstance audioUnit;
-
 internal_usage
 void macOSInitSound(MacOSSoundOutput *soundOutput) {
   
@@ -537,6 +534,7 @@ void macOSInitSound(MacOSSoundOutput *soundOutput) {
     soundOutput->data = malloc(soundOutput->bufferSize);
     soundOutput->playCursor = soundOutput->writeCursor = 0;
 
+    AudioComponentInstance audioUnit;
     AudioComponentDescription acd;
     acd.componentType = kAudioUnitType_Output;
     acd.componentSubType = kAudioUnitSubType_DefaultOutput;
