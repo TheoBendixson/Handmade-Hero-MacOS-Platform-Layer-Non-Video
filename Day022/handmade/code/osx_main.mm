@@ -3,23 +3,100 @@
 //
 // OSX Main
 
-#include "osx_main.h"
 #import <AppKit/AppKit.h>
 #import <IOKit/hid/IOHIDLib.h>
 #import <AudioToolbox/AudioToolbox.h>
 #include <mach/mach_init.h>
 #include <mach/mach_time.h>
+#include <dlfcn.h>
+#include <mach-o/dyld.h>
+#include <sys/stat.h>
+
+#include "osx_main.h"
 
 global_variable bool running = true;
 global_variable bool isPaused = false;
 global_variable mach_timebase_info_data_t globalPerfCountFrequency;
 
+internal void
+CatStrings(size_t SourceACount, char *SourceA,
+           size_t SourceBCount, char *SourceB,
+           size_t DestCount, char *Dest)
+{
+    // TODO(casey): Dest bounds checking!
+    
+    for(int Index = 0;
+        Index < SourceACount;
+        ++Index)
+    {
+        *Dest++ = *SourceA++;
+    }
+
+    for(int Index = 0;
+        Index < SourceBCount;
+        ++Index)
+    {
+        *Dest++ = *SourceB++;
+    }
+
+    *Dest++ = 0;
+}
+
+internal void
+MacRecordInput(mac_state *MacState, game_input *NewInput)
+{
+
+}
+
+internal void
+MacPlayBackInput(mac_state *MacState, game_input *NewInput)
+{
+
+}
+internal void
+MacGetAppFileName(mac_state *State)
+{
+	uint32 buffsize = sizeof(State->AppFileName);
+    if (_NSGetExecutablePath(State->AppFileName, &buffsize) == 0) {
+		for(char *Scan = State->AppFileName;
+			*Scan;
+			++Scan)
+		{
+			if(*Scan == '/')
+			{
+				State->OnePastLastAppFileNameSlash = Scan + 1;
+			}
+		}
+    }
+}
+
+internal int
+StringLength(char *String)
+{
+    int Count = 0;
+    while(*String++)
+    {
+        ++Count;
+    }
+    return(Count);
+}
+
+internal void
+MacBuildAppPathFileName(mac_state *State, char *FileName,
+						int DestCount, char *Dest)
+{
+	CatStrings(State->OnePastLastAppFileNameSlash - State->AppFileName, State->AppFileName,
+			   StringLength(FileName), FileName,
+			   DestCount, Dest);
+}
+
 #if HANDMADE_INTERNAL
-debug_read_file_result DEBUGPlatformReadEntireFile(char *filename) {
+DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile) 
+{
 
     debug_read_file_result result = {};
-    result.contentsSize = 0;
-    result.contents = 0;  
+    result.ContentsSize = 0;
+    result.Contents = 0;  
  
     NSString *path = [NSString stringWithUTF8String: filename];
     NSFileManager *fileManager = [NSFileManager defaultManager];
@@ -30,8 +107,8 @@ debug_read_file_result DEBUGPlatformReadEntireFile(char *filename) {
         if (fileData == nil) {
             NSLog(@"Tried to load file. Contents are empty or otherwise unreadable.");
         } else {
-            result.contentsSize = (uint32)fileData.length;
-            result.contents = const_cast<void *>(fileData.bytes);
+            result.ContentsSize = (uint32)fileData.length;
+            result.Contents = const_cast<void *>(fileData.bytes);
         }
         
     } else {
@@ -41,7 +118,8 @@ debug_read_file_result DEBUGPlatformReadEntireFile(char *filename) {
     return result;
 }
 
-void *DEBUGPlatformFreeFileMemory(void *bitmapMemory) {
+DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory) 
+{
     if (bitmapMemory) {
         free(bitmapMemory);
     }
@@ -49,10 +127,8 @@ void *DEBUGPlatformFreeFileMemory(void *bitmapMemory) {
     return bitmapMemory;
 }
 
-bool32 DEBUGPlatformWriteEntireFile(char *filename, 
-                                    uint64 fileSize,
-                                    void *memory){ 
-
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
+{
     bool32 result = false;
 
     NSString *path = [NSString stringWithUTF8String: filename];
@@ -72,8 +148,66 @@ bool32 DEBUGPlatformWriteEntireFile(char *filename,
     return result;
 }
 
-static void
-macOSDebugDrawVertical(game_offscreen_buffer *buffer, int x,
+inline time_t
+MacGetLastWriteTime(char *Filename)
+{
+	time_t LastWriteTime = 0;
+	
+	struct stat StatData = {};
+
+    if (stat(Filename, &StatData) == 0)
+    {
+        LastWriteTime = StatData.st_mtime;
+    }
+
+    return(LastWriteTime);
+}
+
+internal mac_game_code 
+MacLoadGameCode(char *SourceDLLName)
+{
+    mac_game_code Result = {};
+
+    Result.DLLLastWriteTime = MacGetLastWriteTime(SourceDLLName);
+
+    Result.GameCodeDLL = dlopen(SourceDLLName, RTLD_NOW);
+    if (Result.GameCodeDLL)
+    {
+        Result.UpdateAndRender = (game_update_and_render *)
+            dlsym(Result.GameCodeDLL, "GameUpdateAndRender");
+        
+        Result.GetSoundSamples = (game_get_sound_samples *)
+            dlsym(Result.GameCodeDLL, "GameGetSoundSamples");
+
+        Result.IsValid = (Result.UpdateAndRender &&
+                          Result.GetSoundSamples);
+    }
+    if(!Result.IsValid)
+    {
+        printf("Dynamic Library Load Error: %s", dlerror());
+        Result.UpdateAndRender = 0;
+        Result.GetSoundSamples = 0;
+    }
+
+    return Result;
+}
+
+internal void
+MacUnloadGameCode(mac_game_code *GameCode)
+{
+    if(GameCode->GameCodeDLL)
+    {
+    	dlclose(GameCode->GameCodeDLL);
+        GameCode->GameCodeDLL = 0;
+    }
+
+    GameCode->IsValid = false;
+    GameCode->UpdateAndRender = 0;
+    GameCode->GetSoundSamples = 0;
+}
+
+internal void
+MacDebugDrawVertical(game_offscreen_buffer *buffer, int x,
                        int top, int bottom, uint32 color,
                        int bytesPerPixel) {
 
@@ -81,50 +215,50 @@ macOSDebugDrawVertical(game_offscreen_buffer *buffer, int x,
         top = 0;
     }
 
-    if (bottom > buffer->height) {
-        bottom = buffer->height;
+    if (bottom > buffer->Height) {
+        bottom = buffer->Height;
     }
 
-    if ((x >= 0) && (x < buffer->width)) {
-        uint8 *pixel = ((uint8 *)buffer->memory +
+    if ((x >= 0) && (x < buffer->Width)) {
+        uint8 *pixel = ((uint8 *)buffer->Memory +
                         x*bytesPerPixel +
-                        top*buffer->pitch);
+                        top*buffer->Pitch);
 
         for (int y = top; y < bottom; ++y) {
             *(uint32 *)pixel = color;
-            pixel += buffer->pitch; 
+            pixel += buffer->Pitch; 
         }
     }
 }
 
-static void
-macOSDrawSoundBufferMarker(game_offscreen_buffer *buffer, MacOSSoundOutput *soundOutput,
-                           real32 c, int padX, int top, int bottom, uint32 value, 
-                           uint32 color, int bytesPerPixel) {
+internal void
+MacDrawSoundBufferMarker(game_offscreen_buffer *buffer, mac_sound_output *soundOutput,
+                         real32 c, int padX, int top, int bottom, uint32 value, 
+                         uint32 color, int bytesPerPixel) {
     real32 xReal32 = (c * (real32)value);
     int x = padX + (int)xReal32;
-    macOSDebugDrawVertical(buffer, x, top, bottom, color, bytesPerPixel);
+    MacDebugDrawVertical(buffer, x, top, bottom, color, bytesPerPixel);
 }
 
-static void
-macOSDebugSyncDisplay(game_offscreen_buffer *buffer, MacOSSoundOutput *soundOutput,
-                      int timeMarkerCount, MacOSDebugTimeMarker *timeMarkers, 
+internal void
+MacDebugSyncDisplay(game_offscreen_buffer *buffer, mac_sound_output *soundOutput,
+                      int timeMarkerCount, mac_debug_time_marker *timeMarkers, 
                       int currentMarkerIndex, real32 targetSecondsPerFrame, int bytesPerPixel) {
     int padX = 16;
     int padY = 16;
     int lineHeight = 64; 
 
-    real32 c = (real32)(buffer->width - 2*padX) / (real32)soundOutput->bufferSize;
+    real32 c = (real32)(buffer->Width - 2*padX) / (real32)soundOutput->BufferSize;
 
     for(int markerIndex = 0; markerIndex < timeMarkerCount;
         ++markerIndex) {
 
-        MacOSDebugTimeMarker *thisMarker = &timeMarkers[markerIndex];
-        Assert(thisMarker->outputPlayCursor < soundOutput->bufferSize);
-        Assert(thisMarker->outputWriteCursor < soundOutput->bufferSize);
-        Assert(thisMarker->outputLocation < soundOutput->bufferSize);
-        Assert(thisMarker->flipPlayCursor < soundOutput->bufferSize);
-        Assert(thisMarker->flipWriteCursor < soundOutput->bufferSize);
+        mac_debug_time_marker *thisMarker = &timeMarkers[markerIndex];
+        Assert(thisMarker->OutputPlayCursor < soundOutput->BufferSize);
+        Assert(thisMarker->OutputWriteCursor < soundOutput->BufferSize);
+        Assert(thisMarker->OutputLocation < soundOutput->BufferSize);
+        Assert(thisMarker->FlipPlayCursor < soundOutput->BufferSize);
+        Assert(thisMarker->FlipWriteCursor < soundOutput->BufferSize);
 
         uint32 playColor = 0xFFFFFFFF;
         uint32 writeColor = 0xFF0000FF;
@@ -139,64 +273,66 @@ macOSDebugSyncDisplay(game_offscreen_buffer *buffer, MacOSSoundOutput *soundOutp
 
             int firstTop = top;
 
-            macOSDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
-                                       thisMarker->outputPlayCursor, playColor, bytesPerPixel);
-            macOSDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
-                                       thisMarker->outputWriteCursor, writeColor, bytesPerPixel);
+            MacDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
+                                       thisMarker->OutputPlayCursor, playColor, bytesPerPixel);
+            MacDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
+                                       thisMarker->OutputWriteCursor, writeColor, bytesPerPixel);
 
             top += lineHeight+padY;
             bottom += lineHeight+padY;
 
-            macOSDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
-                                       thisMarker->outputLocation, playColor, bytesPerPixel);
-            macOSDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
-                                       thisMarker->outputLocation + thisMarker->outputByteCount, 
+            MacDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
+                                       thisMarker->OutputLocation, playColor, bytesPerPixel);
+            MacDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
+                                       thisMarker->OutputLocation + thisMarker->OutputByteCount, 
                                        writeColor, bytesPerPixel);
 
             top += lineHeight+padY;
             bottom += lineHeight+padY;
 
-            macOSDrawSoundBufferMarker(buffer, soundOutput, c, padX, firstTop, bottom, 
-                                       thisMarker->expectedFlipPlayCursor, expectedFlipColor, bytesPerPixel);
+            MacDrawSoundBufferMarker(buffer, soundOutput, c, padX, firstTop, bottom, 
+                                       thisMarker->ExpectedFlipPlayCursor, expectedFlipColor, bytesPerPixel);
         }
 
-        macOSDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
-                                   thisMarker->flipPlayCursor, playColor, bytesPerPixel);
-        macOSDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
-                                   thisMarker->flipWriteCursor, writeColor, bytesPerPixel);
+        MacDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
+                                   thisMarker->FlipPlayCursor, playColor, bytesPerPixel);
+        MacDrawSoundBufferMarker(buffer, soundOutput, c, padX, top, bottom, 
+                                   thisMarker->FlipWriteCursor, writeColor, bytesPerPixel);
     }
 }
 #endif
 
-void macOSRefreshBuffer(NSWindow *window, game_offscreen_buffer *buffer,
-                        int bytesPerPixel) {
+internal
+void MacRefreshBuffer(NSWindow *window, game_offscreen_buffer *buffer,
+                      int bytesPerPixel) {
 
-    if (buffer->memory) {
-        free(buffer->memory);
+    if (buffer->Memory) {
+        free(buffer->Memory);
     }
 
-    buffer->width = (int)window.contentView.bounds.size.width;
-    buffer->height = (int)window.contentView.bounds.size.height;
-    buffer->pitch = buffer->width * bytesPerPixel;
-    buffer->memory = (uint8 *)malloc((size_t)buffer->pitch * (size_t)buffer->height);
+    buffer->Width = (int)window.contentView.bounds.size.width;
+    buffer->Height = (int)window.contentView.bounds.size.height;
+    buffer->Pitch = buffer->Width * bytesPerPixel;
+    buffer->Memory = (uint8 *)malloc((size_t)buffer->Pitch * (size_t)buffer->Height);
 }
 
-// TODO(ted):   A connection at Apple told me this is really inefficient. Speed up how this is done.
-void macOSRedrawBuffer(NSWindow *window, game_offscreen_buffer *buffer, int bytesPerPixel) {
+// TODO(ted):   Someone at Apple told me this is really inefficient. Speed up how this is done.
+internal
+void MacRedrawBuffer(NSWindow *window, game_offscreen_buffer *buffer, int bytesPerPixel) {
     @autoreleasepool {
-        uint8* plane = (uint8*)buffer->memory;
+        uint8* plane = (uint8*)buffer->Memory;
         NSBitmapImageRep *rep = [[[NSBitmapImageRep alloc] initWithBitmapDataPlanes: &plane 
-                                  pixelsWide: buffer->width
-                                  pixelsHigh: buffer->height
+                                  pixelsWide: buffer->Width
+                                  pixelsHigh: buffer->Height
                                   bitsPerSample: 8
                                   samplesPerPixel: 4
                                   hasAlpha: YES
                                   isPlanar: NO
                                   colorSpaceName: NSDeviceRGBColorSpace
-                                  bytesPerRow: buffer->pitch
+                                  bytesPerRow: buffer->Pitch
                                   bitsPerPixel: bytesPerPixel * 8] autorelease];
 
-        NSSize imageSize = NSMakeSize(buffer->width, buffer->height);
+        NSSize imageSize = NSMakeSize(buffer->Width, buffer->Height);
         NSImage *image = [[[NSImage alloc] initWithSize: imageSize] autorelease];
         [image addRepresentation: rep];
         window.contentView.layer.contents = image;
@@ -268,8 +404,8 @@ global_variable NSMutableArray *macOSControllers;
 	CFIndex _rShoulderUsageID;
 }
 
-static
-void macOSInitGameControllers() {
+internal
+void MacInitGameControllers() {
     HIDManager = IOHIDManagerCreate(kCFAllocatorDefault, 0);
     OSXHandmadeController *gamePad = [[OSXHandmadeController alloc] init];
     OSXHandmadeController *keyboardController = [[OSXHandmadeController alloc] init];
@@ -286,7 +422,7 @@ void macOSInitGameControllers() {
 
     // TODO (ted):  Figure out how to match multiple game controllers to the different
     //              HID callbacks
-    IOHIDManagerRegisterDeviceMatchingCallback(HIDManager, controllerConnected, NULL);
+    IOHIDManagerRegisterDeviceMatchingCallback(HIDManager, ControllerConnected, NULL);
     IOHIDManagerSetDeviceMatchingMultiple(HIDManager, (__bridge CFArrayRef)@[
         @{@(kIOHIDDeviceUsagePageKey): @(kHIDPage_GenericDesktop), @(kIOHIDDeviceUsageKey): @(kHIDUsage_GD_GamePad)},
         @{@(kIOHIDDeviceUsagePageKey): @(kHIDPage_GenericDesktop), @(kIOHIDDeviceUsageKey): @(kHIDUsage_GD_MultiAxisController)},
@@ -298,147 +434,167 @@ void macOSInitGameControllers() {
 	NSLog(@"OSXhandmade Controller initialized.");
 }
 
-const unsigned short leftArrowKeyCode = 0x7B;
-const unsigned short rightArrowKeyCode = 0x7C;
-const unsigned short downArrowKeyCode = 0x7D;
-const unsigned short upArrowKeyCode = 0x7E;
-const unsigned short aKeyCode = 0x00;
-const unsigned short sKeyCode = 0x01;
-const unsigned short dKeyCode = 0x02;
-const unsigned short fKeyCode = 0x03;
-const unsigned short qKeyCode = 0x0C;
-const unsigned short rKeyCode = 0x0F;
+const unsigned short LeftArrowKeyCode = 0x7B;
+const unsigned short RightArrowKeyCode = 0x7C;
+const unsigned short DownArrowKeyCode = 0x7D;
+const unsigned short UpArrowKeyCode = 0x7E;
+const unsigned short AKeyCode = 0x00;
+const unsigned short SKeyCode = 0x01;
+const unsigned short DKeyCode = 0x02;
+const unsigned short FKeyCode = 0x03;
+const unsigned short QKeyCode = 0x0C;
+const unsigned short RKeyCode = 0x0F;
+const unsigned short LKeyCode = 0x25;
 
-static
-void updateKeyboardControllerWith(NSEvent *event) {
+internal
+void UpdateKeyboardControllerWith(NSEvent *event, mac_state *MacState) {
 
     OSXHandmadeController *keyboardController = [macOSControllers objectAtIndex: 0];    
 
     switch ([event type]) {
         case NSEventTypeKeyDown:
-            if (event.keyCode == leftArrowKeyCode &&
-                keyboardController.dpadX != 1) {
+            if (event.keyCode == LeftArrowKeyCode &&
+                keyboardController.dpadX != 1)
+            {
                 keyboardController.dpadX = -1;
                 break;
             }
-
-            if (event.keyCode == rightArrowKeyCode &&
-                keyboardController.dpadX != -1) {
+            else if (event.keyCode == RightArrowKeyCode &&
+                     keyboardController.dpadX != -1)
+            {
                 keyboardController.dpadX = 1;
                 break;
             }
-
-            if (event.keyCode == downArrowKeyCode &&
-                keyboardController.dpadY != -1) {
+            else if (event.keyCode == DownArrowKeyCode &&
+                     keyboardController.dpadY != -1)
+            {
                 keyboardController.dpadY = 1;
                 break;
             }
-
-            if (event.keyCode == upArrowKeyCode &&
-                keyboardController.dpadY != 1) {
+            else if (event.keyCode == UpArrowKeyCode &&
+                     keyboardController.dpadY != 1)
+            {
                 keyboardController.dpadY = -1;
                 break;
             }
-
-            if (event.keyCode == aKeyCode) {
+            else if (event.keyCode == AKeyCode)
+            {
                 keyboardController.buttonAState = 1;
                 break;
             }
-
-            if (event.keyCode == sKeyCode) {
+            else if (event.keyCode == SKeyCode)
+            {
                 keyboardController.buttonBState = 1;
                 break;
             }
-
-            if (event.keyCode == dKeyCode) {
+            else if (event.keyCode == DKeyCode)
+            {
                 keyboardController.buttonXState = 1;
                 break;
             }
-
-            if (event.keyCode == fKeyCode) {
+            else if (event.keyCode == FKeyCode)
+            {
                 keyboardController.buttonYState = 1;
                 break;
             }
-
-            if (event.keyCode == qKeyCode) {
+            else if (event.keyCode == QKeyCode)
+            {
                 keyboardController.buttonLeftShoulderState = 1;
                 break;
             }
-
-            if (event.keyCode == rKeyCode) {
+            else if (event.keyCode == RKeyCode)
+            {
                 keyboardController.buttonRightShoulderState = 1;
+                break;
+            }
+            else if (event.keyCode == LKeyCode)
+            {
+                if (MacState->InputRecordingIndex == 0)
+                {
+                    MacState->InputRecordingIndex = 1;
+                } else 
+                {
+                    MacState->InputRecordingIndex = 0;
+                    MacState->InputPlayingIndex = 1;
+                }
                 break;
             }
 
         case NSEventTypeKeyUp:
-            if (event.keyCode == leftArrowKeyCode &&
-                keyboardController.dpadX == -1) {
+            if (event.keyCode == LeftArrowKeyCode &&
+                keyboardController.dpadX == -1)
+            {
                 keyboardController.dpadX = 0;
                 break;
             } 
-
-            if (event.keyCode == rightArrowKeyCode &&
-                keyboardController.dpadX == 1) {
+            else if (event.keyCode == RightArrowKeyCode &&
+                     keyboardController.dpadX == 1)
+            {
                 keyboardController.dpadX = 0;
                 break;
             }
-
-            if (event.keyCode == downArrowKeyCode &&
-                keyboardController.dpadY == 1) {
+            else if (event.keyCode == DownArrowKeyCode &&
+                     keyboardController.dpadY == 1)
+            {
                 keyboardController.dpadY = 0;
                 break;
             }
-
-            if (event.keyCode == upArrowKeyCode &&
-                keyboardController.dpadY == -1) {
+            else if (event.keyCode == UpArrowKeyCode &&
+                     keyboardController.dpadY == -1)
+            {
                 keyboardController.dpadY = 0;
                 break;
             }
-
-            if (event.keyCode == aKeyCode) {
+            else if (event.keyCode == AKeyCode)
+            {
                 keyboardController.buttonAState = 0;
                 break;
             }
-
-            if (event.keyCode == sKeyCode) {
+            else if (event.keyCode == SKeyCode)
+            {
                 keyboardController.buttonBState = 0;
                 break;
             }
-
 #if HANDMADE_INTERNAL
-            if (event.keyCode == dKeyCode) {
+            else if (event.keyCode == DKeyCode)
+            {
                 isPaused = !isPaused;
                 break;
             }
 #endif
-            if (event.keyCode == dKeyCode) {
+            else if (event.keyCode == DKeyCode)
+            {
                 keyboardController.buttonXState = 0;
                 break;
             }
-
-            if (event.keyCode == fKeyCode) {
+            else if (event.keyCode == FKeyCode)
+            {
                 keyboardController.buttonYState = 0;
                 break;
             }
-
-            if (event.keyCode == qKeyCode) {
+            else if (event.keyCode == QKeyCode)
+            {
                 keyboardController.buttonLeftShoulderState = 0;
                 break;
             }
-            if (event.keyCode == rKeyCode) {
+            else if (event.keyCode == RKeyCode) 
+            {
                 keyboardController.buttonRightShoulderState = 0;
                 break;
             }
-
+            else if (event.keyCode == LKeyCode) 
+            {
+                break;
+            }
         default:
         break;
     }
 }
 
-static void controllerConnected(void *context, 
-                                IOReturn result, 
-                                void *sender, 
-                                IOHIDDeviceRef device) {
+internal 
+void ControllerConnected(void *context, IOReturn result, 
+                         void *sender, IOHIDDeviceRef device)
+{
 
     if(result != kIOReturnSuccess) {
         return;
@@ -469,18 +625,17 @@ static void controllerConnected(void *context,
     }
 
     // TODO (ted):  Have this register multiple times for multiple controllers.
-    IOHIDDeviceRegisterInputValueCallback(device, controllerInput, (__bridge void *)controller);  
+    IOHIDDeviceRegisterInputValueCallback(device, ControllerInput, (__bridge void *)controller);  
     IOHIDDeviceSetInputValueMatchingMultiple(device, (__bridge CFArrayRef)@[
         @{@(kIOHIDElementUsagePageKey): @(kHIDPage_GenericDesktop)},
         @{@(kIOHIDElementUsagePageKey): @(kHIDPage_Button)},
     ]);
 }
 
-static void controllerInput(void *context, 
-                            IOReturn result, 
-                            void *sender, 
-                            IOHIDValueRef value) {
-
+internal 
+void ControllerInput(void *context, IOReturn result, 
+                     void *sender, IOHIDValueRef value)
+{
     if(result != kIOReturnSuccess) {
         return;
     }
@@ -541,53 +696,53 @@ static void controllerInput(void *context,
 
 @end
 
+OSStatus 
+CircularBufferRenderCallback(void *inRefCon,
+                             AudioUnitRenderActionFlags *ioActionFlags,
+                             const AudioTimeStamp *inTimeStamp,
+                             uint32 inBusNumber,
+                             uint32 inNumberFrames,
+                             AudioBufferList *ioData) 
+{
+    mac_sound_output *soundOutput = (mac_sound_output*)inRefCon;
 
-OSStatus circularBufferRenderCallback(void *inRefCon,
-                                      AudioUnitRenderActionFlags *ioActionFlags,
-                                      const AudioTimeStamp *inTimeStamp,
-                                      uint32 inBusNumber,
-                                      uint32 inNumberFrames,
-                                      AudioBufferList *ioData) {
- 
-    MacOSSoundOutput *soundOutput = (MacOSSoundOutput*)inRefCon;
-
-    uint32 length = inNumberFrames * soundOutput->bytesPerSample; 
+    uint32 length = inNumberFrames * soundOutput->BytesPerSample; 
     uint32 region1Size = length;
     uint32 region2Size = 0;
 
-    if (soundOutput->playCursor + length > soundOutput->bufferSize) {
-        region1Size = soundOutput->bufferSize - soundOutput->playCursor;
+    if (soundOutput->PlayCursor + length > soundOutput->BufferSize) {
+        region1Size = soundOutput->BufferSize - soundOutput->PlayCursor;
         region2Size = length - region1Size;
     } 
    
     uint8* channel = (uint8*)ioData->mBuffers[0].mData;
 
     memcpy(channel, 
-           (uint8*)soundOutput->data + soundOutput->playCursor, 
+           (uint8*)soundOutput->Data + soundOutput->PlayCursor, 
            region1Size);
 
     memcpy(&channel[region1Size],
-           soundOutput->data,
+           soundOutput->Data,
            region2Size);
 
-    soundOutput->playCursor = (soundOutput->playCursor + length) % soundOutput->bufferSize;
-    soundOutput->writeCursor = (soundOutput->playCursor + length) % soundOutput->bufferSize;
+    soundOutput->PlayCursor = (soundOutput->PlayCursor + length) % soundOutput->BufferSize;
+    soundOutput->WriteCursor = (soundOutput->PlayCursor + length) % soundOutput->BufferSize;
 
     return noErr;
 }
 
-internal_usage
-void macOSInitSound(MacOSSoundOutput *soundOutput) {
-  
+internal
+void MacInitSound(mac_sound_output *soundOutput)
+{
     //Create a two second circular buffer 
-    soundOutput->samplesPerSecond = 48000; 
-    soundOutput->runningSampleIndex = 0;
+    soundOutput->SamplesPerSecond = 48000; 
+    soundOutput->RunningSampleIndex = 0;
     uint32 audioFrameSize = sizeof(int16) * 2;
     uint32 numberOfSeconds = 2; 
-    soundOutput->bytesPerSample = audioFrameSize; 
-    soundOutput->bufferSize = soundOutput->samplesPerSecond * audioFrameSize * numberOfSeconds;
-    soundOutput->data = malloc(soundOutput->bufferSize);
-    soundOutput->playCursor = soundOutput->writeCursor = 0;
+    soundOutput->BytesPerSample = audioFrameSize; 
+    soundOutput->BufferSize = soundOutput->SamplesPerSecond * audioFrameSize * numberOfSeconds;
+    soundOutput->Data = malloc(soundOutput->BufferSize);
+    soundOutput->PlayCursor = soundOutput->WriteCursor = 0;
 
     AudioComponentInstance audioUnit;
     AudioComponentDescription acd;
@@ -609,7 +764,7 @@ void macOSInitSound(MacOSSoundOutput *soundOutput) {
     }
 
     AudioStreamBasicDescription audioDescriptor;
-    audioDescriptor.mSampleRate = soundOutput->samplesPerSecond;
+    audioDescriptor.mSampleRate = soundOutput->SamplesPerSecond;
     audioDescriptor.mFormatID = kAudioFormatLinearPCM;
     audioDescriptor.mFormatFlags = kAudioFormatFlagIsSignedInteger | 
                                    kAudioFormatFlagIsPacked; 
@@ -636,7 +791,7 @@ void macOSInitSound(MacOSSoundOutput *soundOutput) {
     }
 
     AURenderCallbackStruct renderCallback;
-    renderCallback.inputProc = circularBufferRenderCallback;
+    renderCallback.inputProc = CircularBufferRenderCallback;
     renderCallback.inputProcRefCon = soundOutput;
 
     status = AudioUnitSetProperty(audioUnit,
@@ -656,64 +811,61 @@ void macOSInitSound(MacOSSoundOutput *soundOutput) {
     AudioOutputUnitStart(audioUnit);
 }
 
-static void
-macOSFillSoundBuffer(int byteToLock,
-                     int bytesToWrite,
-                     game_sound_output_buffer *soundBuffer,
-                     MacOSSoundOutput *soundOutput) {
-
-    int16_t *samples = soundBuffer->samples;
-    void *region1 = (uint8*)soundOutput->data + byteToLock;
+internal void
+MacFillSoundBuffer(int byteToLock, int bytesToWrite,
+                   game_sound_output_buffer *soundBuffer, mac_sound_output *soundOutput) 
+{
+    int16_t *Samples = soundBuffer->Samples;
+    void *region1 = (uint8*)soundOutput->Data + byteToLock;
     int region1Size = bytesToWrite;
-    if (region1Size + byteToLock > soundOutput->bufferSize)
+    if (region1Size + byteToLock > soundOutput->BufferSize)
     {
-        region1Size = soundOutput->bufferSize - byteToLock;
+        region1Size = soundOutput->BufferSize - byteToLock;
     }
-    void *region2 = soundOutput->data;
+    void *region2 = soundOutput->Data;
     int region2Size = bytesToWrite - region1Size;
-    int region1SampleCount = region1Size/soundOutput->bytesPerSample;
+    int region1SampleCount = region1Size/soundOutput->BytesPerSample;
     int16 *sampleOut = (int16 *)region1;
     for(int sampleIndex = 0;
         sampleIndex < region1SampleCount;
         ++sampleIndex)
     {
-        *sampleOut++ = *samples++;
-        *sampleOut++ = *samples++;
+        *sampleOut++ = *Samples++;
+        *sampleOut++ = *Samples++;
 
-        ++soundOutput->runningSampleIndex;
+        ++soundOutput->RunningSampleIndex;
     }
 
-    int region2SampleCount = region2Size/soundOutput->bytesPerSample;
+    int region2SampleCount = region2Size/soundOutput->BytesPerSample;
     sampleOut = (int16 *)region2;
     for(int sampleIndex = 0;
         sampleIndex < region2SampleCount;
         ++sampleIndex)
     {
-        *sampleOut++ = *samples++;
-        *sampleOut++ = *samples++;
-        ++soundOutput->runningSampleIndex;
+        *sampleOut++ = *Samples++;
+        *sampleOut++ = *Samples++;
+        ++soundOutput->RunningSampleIndex;
     }
 } 
 
-static void
-macOSProcessGameControllerButton(game_button_state *oldState,
-                                 game_button_state *newState,
-                                 bool32 isDown) {
-    newState->endedDown = isDown;
-    newState->halfTransitionCount += ((newState->endedDown == oldState->endedDown)?0:1);
+internal void
+MacProcessGameControllerButton(game_button_state *oldState, game_button_state *newState,
+                               bool32 isDown) 
+{
+    newState->EndedDown = isDown;
+    newState->HalfTransitionCount += ((newState->EndedDown == oldState->EndedDown)?0:1);
 }
 
-static real32
-macOSGetSecondsElapsed(uint64 start, uint64 end)
+internal real32
+MacGetSecondsElapsed(uint64 start, uint64 end)
 {
 	uint64 elapsed = (end - start);
     real32 result = (real32)(elapsed * (globalPerfCountFrequency.numer / globalPerfCountFrequency.denom)) / 1000.f / 1000.f / 1000.f;
     return(result);
 }
 
-
-int main(int argc, const char * argv[]) {
-
+int main(int argc, const char * argv[]) 
+{
     mach_timebase_info(&globalPerfCountFrequency);
 
     HandmadeMainWindowDelegate *mainWindowDelegate = [[HandmadeMainWindowDelegate alloc] init];
@@ -744,7 +896,7 @@ int main(int argc, const char * argv[]) {
     int bytesPerPixel = 4;
     game_offscreen_buffer buffer = {};
 
-    macOSRefreshBuffer(window, &buffer, bytesPerPixel);
+    MacRefreshBuffer(window, &buffer, bytesPerPixel);
 
 #if HANDMADE_INTERNAL
     char* baseAddress = (char*)Gigabytes(8);
@@ -755,43 +907,46 @@ int main(int argc, const char * argv[]) {
 #endif
 
     game_memory gameMemory = {};
-    gameMemory.permanentStorageSize = Megabytes(64);
-    gameMemory.transientStorageSize = Gigabytes(4);
+    gameMemory.PermanentStorageSize = Megabytes(64);
+    gameMemory.TransientStorageSize = Gigabytes(4);
+    gameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
+    gameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
+    gameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 
-    gameMemory.permanentStorage = mmap(baseAddress,
-                                       gameMemory.permanentStorageSize,
+    gameMemory.PermanentStorage = mmap(baseAddress,
+                                       gameMemory.PermanentStorageSize,
                                        PROT_READ | PROT_WRITE,
                                        allocationFlags, -1, 0); 
 
-    if (gameMemory.permanentStorage == MAP_FAILED) {
+    if (gameMemory.PermanentStorage == MAP_FAILED) {
 		printf("mmap error: %d  %s", errno, strerror(errno));
         [NSException raise: @"Game Memory Not Allocated"
                      format: @"Failed to allocate permanent storage"];
     }
    
-    uint8* transientStorageAddress = ((uint8*)gameMemory.permanentStorage + gameMemory.permanentStorageSize);
-    gameMemory.transientStorage = mmap(transientStorageAddress,
-                                       gameMemory.transientStorageSize,
+    uint8* TransientStorageAddress = ((uint8*)gameMemory.PermanentStorage + gameMemory.PermanentStorageSize);
+    gameMemory.TransientStorage = mmap(TransientStorageAddress,
+                                       gameMemory.TransientStorageSize,
                                        PROT_READ | PROT_WRITE,
                                        allocationFlags, -1, 0); 
 
-    if (gameMemory.transientStorage == MAP_FAILED) {
+    if (gameMemory.TransientStorage == MAP_FAILED) {
 		printf("mmap error: %d  %s", errno, strerror(errno));
         [NSException raise: @"Game Memory Not Allocated"
                      format: @"Failed to allocate transient storage"];
     }
 
-    macOSInitGameControllers(); 
+    MacInitGameControllers(); 
 
-    MacOSSoundOutput soundOutput = {};
-    macOSInitSound(&soundOutput);
+    mac_sound_output soundOutput = {};
+    MacInitSound(&soundOutput);
 
     game_input input[2] = {};
     game_input *newInput = &input[0];
     game_input *oldInput = &input[1];
 
-    int16 *samples = (int16*)calloc(soundOutput.samplesPerSecond,
-                                    soundOutput.bytesPerSample); 
+    int16 *Samples = (int16*)calloc(soundOutput.SamplesPerSecond,
+                                    soundOutput.BytesPerSample); 
 
     int monitorRefreshHz = 60;
     uint32 gameUpdateHzInt = monitorRefreshHz/2;
@@ -799,7 +954,7 @@ int main(int argc, const char * argv[]) {
     real32 targetSecondsPerFrame = 1.0f / (real32)gameUpdateHz;
 
     // TODO: (ted)  Compute this variance and see what the lowest reasonable value is
-    soundOutput.safetyBytes = ((soundOutput.samplesPerSecond*soundOutput.bytesPerSample)/gameUpdateHzInt)/3;
+    soundOutput.SafetyBytes = ((soundOutput.SamplesPerSecond*soundOutput.BytesPerSample)/gameUpdateHzInt)/3;
 
     uint64 currentTime = mach_absolute_time();
     uint64 lastCounter = currentTime;
@@ -811,8 +966,19 @@ int main(int argc, const char * argv[]) {
 
 #if HANDMADE_INTERNAL
     int debugTimeMarkerIndex = 0;
-    MacOSDebugTimeMarker debugTimeMarkers[15] = {};
+    mac_debug_time_marker debugTimeMarkers[15] = {};
 #endif
+
+    mac_state MacState = {};
+
+    MacGetAppFileName(&MacState);
+
+    // TODO: (ted) Figure out how to load the game code from a file name.
+	char SourceGameCodeDLLFullPath[MAC_MAX_FILENAME_SIZE];
+    MacBuildAppPathFileName(&MacState, "Contents/Resources/GameCode.dylib",
+                               sizeof(SourceGameCodeDLLFullPath), SourceGameCodeDLLFullPath);
+
+    mac_game_code Game = MacLoadGameCode(SourceGameCodeDLLFullPath);
 
     while(running) {
 
@@ -829,7 +995,7 @@ int main(int argc, const char * argv[]) {
             if (event != nil &&
                 (event.type == NSEventTypeKeyDown ||
                 event.type == NSEventTypeKeyUp)) {
-                updateKeyboardControllerWith(event);
+                UpdateKeyboardControllerWith(event, &MacState);
             }
  
             switch ([event type]) {
@@ -838,20 +1004,37 @@ int main(int argc, const char * argv[]) {
             }
         } while (event != nil);
 
+        time_t NewDLLWriteTime = MacGetLastWriteTime(SourceGameCodeDLLFullPath);
+        if(NewDLLWriteTime > Game.DLLLastWriteTime)
+        {
+            MacUnloadGameCode(&Game);
+            Game = MacLoadGameCode(SourceGameCodeDLLFullPath);
+        }
+
         if (!isPaused) {
 
-            gameUpdateAndRender(&gameMemory, newInput, &buffer); 
+            if (MacState.InputRecordingIndex)
+            {
+                MacRecordInput(&MacState, NewInput); 
+            }
+
+            if (MacState.InputPlayingIndex)
+            {
+                MacPlayBackInput(&MacState, &NewInput); 
+            }
+
+            Game.UpdateAndRender(&gameMemory, newInput, &buffer); 
 
 //          TODO (ted): This wasn't used in the original stream. Figure out how it can be used.
 //            uint64 audioWallClock = mach_absolute_time();
 //            real32 fromBeginToAudioSeconds = macOSGetSecondsElapsed(flipWallClock, audioWallClock);
 
-            uint32 playCursor = soundOutput.playCursor;
-            uint32 writeCursor = soundOutput.writeCursor;
+            uint32 PlayCursor = soundOutput.PlayCursor;
+            uint32 WriteCursor = soundOutput.WriteCursor;
 
             // NOTE(casey):  Here is how sound output computation works.
             //
-            //               We define a safety value that is the number of samples 
+            //               We define a safety value that is the number of Samples 
             //               we think our game update loop may vary by. (let's say up to 2ms).
             //
             //               When we wake up to write audio, we will look and see
@@ -866,35 +1049,35 @@ int main(int argc, const char * argv[]) {
             //
             //               If the write cursor is after that safety margin, then we assume
             //               we can never sync the audio perfectly, so we will write one frame's
-            //               worth of audio plus the safety margin's worth of guard samples. 
+            //               worth of audio plus the safety margin's worth of guard Samples. 
             //               (1ms or whatever is determined to be safe). Whatever we think the variability
             //               of our frame computation is.
             if (!soundIsValid) {
-                soundOutput.runningSampleIndex = writeCursor / soundOutput.bytesPerSample;
+                soundOutput.RunningSampleIndex = WriteCursor / soundOutput.BytesPerSample;
                 soundIsValid = true;
             }
 
             int byteToLock = 0;
             int bytesToWrite = 0;
 
-            byteToLock = (soundOutput.runningSampleIndex*soundOutput.bytesPerSample) % soundOutput.bufferSize; 
+            byteToLock = (soundOutput.RunningSampleIndex*soundOutput.BytesPerSample) % soundOutput.BufferSize; 
 
             uint32 expectedSoundBytesPerFrame = 
-                (soundOutput.samplesPerSecond*soundOutput.bytesPerSample)/gameUpdateHzInt;
+                (soundOutput.SamplesPerSecond*soundOutput.BytesPerSample)/gameUpdateHzInt;
 
             //TODO: (ted)   Commented this out. It wasn't used in the original stream.
 //            real32 secondsLeftUntilFlip = (targetSecondsPerFrame - fromBeginToAudioSeconds);
 //            uint32 expectedBytesUntilFlip = 
 //                (uint32)((secondsLeftUntilFlip/targetSecondsPerFrame)*(real32)expectedSoundBytesPerFrame);
 
-            uint32 expectedFrameBoundaryByte = playCursor + expectedSoundBytesPerFrame;
+            uint32 expectedFrameBoundaryByte = PlayCursor + expectedSoundBytesPerFrame;
 
-            uint32 safeWriteCursor = writeCursor;
-            if (safeWriteCursor < playCursor) {
-                safeWriteCursor += soundOutput.bufferSize;
+            uint32 safeWriteCursor = WriteCursor;
+            if (safeWriteCursor < PlayCursor) {
+                safeWriteCursor += soundOutput.BufferSize;
             }
-            Assert(safeWriteCursor >= playCursor);
-            safeWriteCursor += soundOutput.safetyBytes;
+            Assert(safeWriteCursor >= PlayCursor);
+            safeWriteCursor += soundOutput.SafetyBytes;
 
             bool32 audioCardIsLowLatency = (safeWriteCursor < expectedFrameBoundaryByte);
 
@@ -903,35 +1086,34 @@ int main(int argc, const char * argv[]) {
             if (audioCardIsLowLatency) {
                 targetCursor = (expectedFrameBoundaryByte + expectedSoundBytesPerFrame);
             } else {
-                targetCursor = (writeCursor + expectedSoundBytesPerFrame + soundOutput.safetyBytes);
+                targetCursor = (WriteCursor + expectedSoundBytesPerFrame + soundOutput.SafetyBytes);
             }
 
-            targetCursor = targetCursor % soundOutput.bufferSize;
+            targetCursor = targetCursor % soundOutput.BufferSize;
 
              if (byteToLock > targetCursor) {
-                bytesToWrite = (soundOutput.bufferSize - byteToLock);
+                bytesToWrite = (soundOutput.BufferSize - byteToLock);
                 bytesToWrite += targetCursor;
             } else {
                 bytesToWrite = targetCursor - byteToLock;
             }
 
             game_sound_output_buffer soundBuffer = {};
-            soundBuffer.samplesPerSecond = soundOutput.samplesPerSecond;
-            soundBuffer.sampleCount = bytesToWrite / soundOutput.bytesPerSample;
-            soundBuffer.samples = samples;
-            gameGetSoundSamples(&gameMemory, &soundBuffer);
+            soundBuffer.SamplesPerSecond = soundOutput.SamplesPerSecond;
+            soundBuffer.SampleCount = bytesToWrite / soundOutput.BytesPerSample;
+            soundBuffer.Samples = Samples;
+            Game.GetSoundSamples(&gameMemory, &soundBuffer);
 
 #if HANDMADE_INTERNAL
-            MacOSDebugTimeMarker *marker = &debugTimeMarkers[debugTimeMarkerIndex];
-            marker->outputPlayCursor = playCursor;
-            marker->outputWriteCursor = writeCursor;
-            marker->outputLocation = byteToLock;
-            marker->outputByteCount = bytesToWrite;
-            marker->expectedFlipPlayCursor = expectedFrameBoundaryByte;
+            mac_debug_time_marker *marker = &debugTimeMarkers[debugTimeMarkerIndex];
+            marker->OutputPlayCursor = PlayCursor;
+            marker->OutputWriteCursor = WriteCursor;
+            marker->OutputLocation = byteToLock;
+            marker->OutputByteCount = bytesToWrite;
+            marker->ExpectedFlipPlayCursor = expectedFrameBoundaryByte;
 #endif
 
-            macOSFillSoundBuffer(byteToLock, bytesToWrite, &soundBuffer, &soundOutput);
-
+            MacFillSoundBuffer(byteToLock, bytesToWrite, &soundBuffer, &soundOutput);
 
             game_input *temp = newInput;
             newInput = oldInput;
@@ -940,84 +1122,84 @@ int main(int argc, const char * argv[]) {
             for (int controllerIndex = 0; controllerIndex < 2; controllerIndex++) {
                 OSXHandmadeController *controller = [macOSControllers objectAtIndex: controllerIndex];
 
-                game_controller_input *oldController = &oldInput->controllers[controllerIndex];
-                game_controller_input *newController = &newInput->controllers[controllerIndex];
+                game_controller_input *oldController = &oldInput->Controllers[controllerIndex];
+                game_controller_input *newController = &newInput->Controllers[controllerIndex];
 
-                macOSProcessGameControllerButton(&(oldController->a),
-                                                 &(newController->a),
+                MacProcessGameControllerButton(&(oldController->A),
+                                                 &(newController->A),
                                                  controller.buttonAState); 
 
-                macOSProcessGameControllerButton(&(oldController->b),
-                                                 &(newController->b),
+                MacProcessGameControllerButton(&(oldController->B),
+                                                 &(newController->B),
                                                  controller.buttonBState); 
 
-                macOSProcessGameControllerButton(&(oldController->x),
-                                                 &(newController->x),
+                MacProcessGameControllerButton(&(oldController->X),
+                                                 &(newController->X),
                                                  controller.buttonXState); 
 
-                macOSProcessGameControllerButton(&(oldController->y),
-                                                 &(newController->y),
+                MacProcessGameControllerButton(&(oldController->Y),
+                                                 &(newController->Y),
                                                  controller.buttonYState); 
 
-                macOSProcessGameControllerButton(&(oldController->leftShoulder),
-                                                 &(newController->leftShoulder),
+                MacProcessGameControllerButton(&(oldController->LeftShoulder),
+                                                 &(newController->LeftShoulder),
                                                  controller.buttonLeftShoulderState); 
                
-                macOSProcessGameControllerButton(&(oldController->rightShoulder),
-                                                 &(newController->rightShoulder),
+                MacProcessGameControllerButton(&(oldController->RightShoulder),
+                                                 &(newController->RightShoulder),
                                                  controller.buttonRightShoulderState); 
      
                 if (controller.dpadX == 1) {
-                    macOSProcessGameControllerButton(&(oldController->right),
-                                                     &(newController->right),
+                    MacProcessGameControllerButton(&(oldController->Right),
+                                                     &(newController->Right),
                                                      true); 
-                    macOSProcessGameControllerButton(&(oldController->left),
-                                                     &(newController->left),
+                    MacProcessGameControllerButton(&(oldController->Left),
+                                                     &(newController->Left),
                                                      false); 
                 } else if (controller.dpadX == -1) {
-                    macOSProcessGameControllerButton(&(oldController->right),
-                                                     &(newController->right),
+                    MacProcessGameControllerButton(&(oldController->Right),
+                                                     &(newController->Right),
                                                      false); 
-                    macOSProcessGameControllerButton(&(oldController->left),
-                                                     &(newController->left),
+                    MacProcessGameControllerButton(&(oldController->Left),
+                                                     &(newController->Left),
                                                      true); 
                 } else if (controller.dpadX == 0) {
-                    macOSProcessGameControllerButton(&(oldController->right),
-                                                     &(newController->right),
+                    MacProcessGameControllerButton(&(oldController->Right),
+                                                     &(newController->Right),
                                                      false); 
-                    macOSProcessGameControllerButton(&(oldController->left),
-                                                     &(newController->left),
+                    MacProcessGameControllerButton(&(oldController->Left),
+                                                     &(newController->Left),
                                                      false); 
                 }
 
                 if (controller.dpadY == 1) {
-                    macOSProcessGameControllerButton(&(oldController->up),
-                                                     &(newController->up),
+                    MacProcessGameControllerButton(&(oldController->Up),
+                                                     &(newController->Up),
                                                      true); 
-                    macOSProcessGameControllerButton(&(oldController->down),
-                                                     &(newController->down),
+                    MacProcessGameControllerButton(&(oldController->Down),
+                                                     &(newController->Down),
                                                      false); 
                 } else if (controller.dpadY == -1) {
-                    macOSProcessGameControllerButton(&(oldController->up),
-                                                     &(newController->up),
+                    MacProcessGameControllerButton(&(oldController->Up),
+                                                     &(newController->Up),
                                                      false); 
-                    macOSProcessGameControllerButton(&(oldController->down),
-                                                     &(newController->down),
+                    MacProcessGameControllerButton(&(oldController->Down),
+                                                     &(newController->Down),
                                                      true); 
                 } else if (controller.dpadY == 0) {
-                    macOSProcessGameControllerButton(&(oldController->up),
-                                                     &(newController->up),
+                    MacProcessGameControllerButton(&(oldController->Up),
+                                                     &(newController->Up),
                                                      false); 
-                    macOSProcessGameControllerButton(&(oldController->down),
-                                                     &(newController->down),
+                    MacProcessGameControllerButton(&(oldController->Down),
+                                                     &(newController->Down),
                                                      false); 
                 }
 
-                newController->isAnalog = controller.usesHatSwitch;
-                newController->startX = oldController->endX;
-                newController->startY = oldController->endY;
+                newController->IsAnalog = controller.usesHatSwitch;
+                newController->StartX = oldController->EndX;
+                newController->StartY = oldController->EndY;
 
-                if (newController->isAnalog) {
+                if (newController->IsAnalog) {
                     // TODO: (ted)  The analog value returned has a range of zero to 255.
                     //              Zero to 127 means negative, and 128 to 255 means positive.
                     //
@@ -1028,15 +1210,15 @@ int main(int argc, const char * argv[]) {
                     //
                     //              Take another pass at this later and see if we could get something more
                     //              accurate.
-                    newController->endX = (real32)(controller.leftThumbstickX - 127.5f)/127.5f;
-                    newController->endY = (real32)(controller.leftThumbstickY - 127.5f)/127.5f;
-                    newController->minX = newController->maxX = newController->endX;            
-                    newController->minY = newController->maxY = newController->endY;            
+                    newController->EndX = (real32)(controller.leftThumbstickX - 127.5f)/127.5f;
+                    newController->EndY = (real32)(controller.leftThumbstickY - 127.5f)/127.5f;
+                    newController->MinX = newController->MaxX = newController->EndX;            
+                    newController->MinY = newController->MaxY = newController->EndY;            
                 }
             }
 
             uint64 workCounter = mach_absolute_time();
-            real32 workSecondsElapsed = macOSGetSecondsElapsed(lastCounter, workCounter);
+            real32 workSecondsElapsed = MacGetSecondsElapsed(lastCounter, workCounter);
 
             real32 secondsElapsedForFrame = workSecondsElapsed;
             if(secondsElapsedForFrame < targetSecondsPerFrame) {
@@ -1059,7 +1241,7 @@ int main(int argc, const char * argv[]) {
                     usleep(sleepMS);
                 }
 
-                real32 testSecondsElapsedForFrame = macOSGetSecondsElapsed(lastCounter,
+                real32 testSecondsElapsedForFrame = MacGetSecondsElapsed(lastCounter,
                         mach_absolute_time());
                 if(testSecondsElapsedForFrame < targetSecondsPerFrame)
                 {
@@ -1068,7 +1250,7 @@ int main(int argc, const char * argv[]) {
 
                 while(secondsElapsedForFrame < targetSecondsPerFrame)
                 {
-                    secondsElapsedForFrame = macOSGetSecondsElapsed(lastCounter,
+                    secondsElapsedForFrame = MacGetSecondsElapsed(lastCounter,
                             mach_absolute_time());
                 }
             }
@@ -1094,18 +1276,16 @@ int main(int argc, const char * argv[]) {
 
 #if HANDMADE_INTERNAL
             // TODO (casey):    Current is wrong on the zeroeth index
-            macOSDebugSyncDisplay(&buffer, &soundOutput, debugTimeMarkerIndex, 
-                                  debugTimeMarkers, (debugTimeMarkerIndex - 1), targetSecondsPerFrame, 
-                                  bytesPerPixel);
+            MacDebugSyncDisplay(&buffer, &soundOutput, debugTimeMarkerIndex, debugTimeMarkers, 
+                                (debugTimeMarkerIndex - 1), targetSecondsPerFrame, bytesPerPixel);
 #endif
-            macOSRedrawBuffer(window, &buffer, bytesPerPixel); 
+            MacRedrawBuffer(window, &buffer, bytesPerPixel); 
             flipWallClock = mach_absolute_time();
 #if HANDMADE_INTERNAL
             // NOTE(ted):   This is debug code
             {
-//            MacOSDebugTimeMarker *marker = &debugTimeMarkers[debugTimeMarkerIndex];
-                marker->flipWriteCursor = writeCursor;
-                marker->flipPlayCursor = playCursor;
+                marker->FlipWriteCursor = WriteCursor;
+                marker->FlipPlayCursor = PlayCursor;
                 ++debugTimeMarkerIndex;
                 if(debugTimeMarkerIndex >= ArrayCount(debugTimeMarkers)) {
                     debugTimeMarkerIndex = 0;
