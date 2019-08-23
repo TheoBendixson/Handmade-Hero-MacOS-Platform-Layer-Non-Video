@@ -111,7 +111,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
                 else
                 {                    
                     // TODO(casey): Logging
-                    DEBUGPlatformFreeFileMemory(Result.Contents);
+                    DEBUGPlatformFreeFileMemory(Thread, Result.Contents);
                     Result.Contents = 0;
                 }
             }
@@ -178,13 +178,13 @@ MacGetLastWriteTime(char *Filename)
 }
 
 internal void
-MacBeginRecordingInput(mac_state *MacState, int InputRecordingIndex)
+MacBeginRecordingInput(thread_context *Thread, mac_state *MacState, int InputRecordingIndex)
 {
     MacState->InputRecordingIndex = InputRecordingIndex;
     char *Filename = "foo.hmi";
     MacState->RecordingHandle = fopen(Filename, "w");
     char *GameMemoryFilename = "game_memory.hmm";
-    DEBUGPlatformWriteEntireFile(GameMemoryFilename, MacState->PermanentStorageSize, MacState->GameMemoryBlock);
+    DEBUGPlatformWriteEntireFile(Thread, GameMemoryFilename, MacState->PermanentStorageSize, MacState->GameMemoryBlock);
 }
 
 internal void
@@ -198,13 +198,13 @@ MacEndRecordingInput(mac_state *MacState)
 //              of the Xcode Debugger. That's probably fine for testing
 //              purposes, so it's no big deal.
 internal void
-MacBeginInputPlayback(mac_state *MacState, int InputPlayingIndex)
+MacBeginInputPlayback(thread_context *Thread, mac_state *MacState, int InputPlayingIndex)
 {
     MacState->InputPlayingIndex = InputPlayingIndex;
     char *Filename = "foo.hmi";
     MacState->PlaybackHandle = fopen(Filename, "r");
     char *GameMemoryFilename = "game_memory.hmm";
-    debug_read_file_result Result = DEBUGPlatformReadEntireFile(GameMemoryFilename);
+    debug_read_file_result Result = DEBUGPlatformReadEntireFile(Thread, GameMemoryFilename);
     MacState->GameMemoryBlock = Result.Contents;
 }
 
@@ -226,14 +226,14 @@ MacRecordInput(mac_state *MacState, game_input *NewInput)
 }
 
 internal void
-MacPlaybackInput(mac_state *MacState, game_input *NewInput)
+MacPlaybackInput(thread_context *Thread, mac_state *MacState, game_input *NewInput)
 {
     uint64 BytesRead = fread(NewInput, sizeof(char), sizeof(*NewInput), MacState->PlaybackHandle);
     if (BytesRead <= 0) 
     {
         int PlayingIndex = MacState->InputPlayingIndex;
         MacEndInputPlayback(MacState); 
-        MacBeginInputPlayback(MacState, PlayingIndex);
+        MacBeginInputPlayback(Thread, MacState, PlayingIndex);
     }
 }
 
@@ -519,7 +519,7 @@ const unsigned short RKeyCode = 0x0F;
 const unsigned short LKeyCode = 0x25;
 
 internal
-void UpdateKeyboardControllerWith(NSEvent *Event, mac_state *MacState) {
+void UpdateKeyboardControllerWith(thread_context *Thread, NSEvent *Event, mac_state *MacState) {
 
     OSXHandmadeController *keyboardController = [macOSControllers objectAtIndex: 0];    
 
@@ -583,12 +583,12 @@ void UpdateKeyboardControllerWith(NSEvent *Event, mac_state *MacState) {
             {
                 if (MacState->InputRecordingIndex == 0)
                 {
-                    MacBeginRecordingInput(MacState, 1);
+                    MacBeginRecordingInput(Thread, MacState, 1);
                     MacState->InputRecordingIndex = 1;
                 } else 
                 {
                     MacEndRecordingInput(MacState);
-                    MacBeginInputPlayback(MacState, 1);
+                    MacBeginInputPlayback(Thread, MacState, 1);
                     MacState->InputRecordingIndex = 0;
                     MacState->InputPlayingIndex = 1;
                 }
@@ -971,6 +971,8 @@ int main(int argc, const char * argv[])
     [Window setDelegate: MainWindowDelegate];
     Window.contentView.wantsLayer = YES;
 
+    thread_context Thread = {};
+
     game_offscreen_buffer Buffer = {};
     Buffer.BytesPerPixel = 4;
 
@@ -1080,7 +1082,7 @@ int main(int argc, const char * argv[])
             if (Event != nil &&
                 (Event.type == NSEventTypeKeyDown ||
                 Event.type == NSEventTypeKeyUp)) {
-                UpdateKeyboardControllerWith(Event, &MacState);
+                UpdateKeyboardControllerWith(&Thread, Event, &MacState);
             }
  
             switch ([Event type]) {
@@ -1088,8 +1090,26 @@ int main(int argc, const char * argv[])
                     [NSApp sendEvent: Event];
             }
         } while (Event != nil);
+    
+        NSPoint MouseP = Window.mouseLocationOutsideOfEventStream;
+        NewInput->MouseX = (int32)MouseP.x;
+        NewInput->MouseY = (int32)(GlobalRenderHeight - MouseP.y);
+        NewInput->MouseZ = 0;
+        bool32 MouseDown0 = (CGEventSourceButtonState(kCGEventSourceStateCombinedSessionState, 0));
+        MacProcessGameControllerButton(&OldInput->MouseButtons[0],
+                                       &NewInput->MouseButtons[0],
+                                       MouseDown0); 
 
-        // TODO: (ted)  Dead Zone Processing
+        bool32 MouseDown1 = (CGEventSourceButtonState(kCGEventSourceStateCombinedSessionState, 1));
+        MacProcessGameControllerButton(&OldInput->MouseButtons[1],
+                                       &NewInput->MouseButtons[1],
+                                       MouseDown1); 
+
+        bool32 MouseDown2 = (CGEventSourceButtonState(kCGEventSourceStateCombinedSessionState, 2));
+        MacProcessGameControllerButton(&OldInput->MouseButtons[2],
+                                       &NewInput->MouseButtons[2],
+                                       MouseDown2); 
+
         for (int ControllerIndex = 0; ControllerIndex < 2; ControllerIndex++) {
             OSXHandmadeController *Controller = [macOSControllers objectAtIndex: ControllerIndex];
 
@@ -1228,14 +1248,14 @@ int main(int argc, const char * argv[])
 
             if (MacState.InputPlayingIndex)
             {
-                MacPlaybackInput(&MacState, NewInput); 
+                MacPlaybackInput(&Thread, &MacState, NewInput); 
             }
 
             GameMemory.PermanentStorage = MacState.GameMemoryBlock; 
 
             if (Game.UpdateAndRender)
             {
-                Game.UpdateAndRender(&GameMemory, NewInput, &Buffer); 
+                Game.UpdateAndRender(&Thread, &GameMemory, NewInput, &Buffer); 
             }
 
 //            uint64 audioWallClock = mach_absolute_time();
@@ -1316,7 +1336,7 @@ int main(int argc, const char * argv[])
             
             if (Game.GetSoundSamples)
             {
-                Game.GetSoundSamples(&GameMemory, &SoundBuffer);
+                Game.GetSoundSamples(&Thread, &GameMemory, &SoundBuffer);
             }
 
 #if HANDMADE_INTERNAL
