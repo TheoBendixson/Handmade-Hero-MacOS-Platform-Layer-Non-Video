@@ -30,10 +30,18 @@ struct mac_debug_time_marker
     uint32 FlipPlayCursor;
 };
 
+struct mac_replay_buffer
+{
+    char ReplayFileName[MAC_MAX_FILENAME_SIZE];
+    void *MemoryBlock;
+};
+
 struct mac_state
 {
     void *GameMemoryBlock;
     uint64 PermanentStorageSize;
+
+    mac_replay_buffer ReplayBuffers[4];
 
     char AppFileName[MAC_MAX_FILENAME_SIZE];
     char *OnePastLastAppFileNameSlash;

@@ -177,14 +177,28 @@ MacGetLastWriteTime(char *Filename)
     return(LastWriteTime);
 }
 
+internal mac_replay_buffer *
+MacGetReplayBuffer(mac_state *MacState, int unsigned Index)
+{
+    Assert(Index < ArrayCount(MacState->ReplayBuffers));
+    mac_replay_buffer *ReplayBuffer = &MacState->ReplayBuffers[Index];
+    return ReplayBuffer;
+}
+
 internal void
 MacBeginRecordingInput(thread_context *Thread, mac_state *MacState, int InputRecordingIndex)
 {
-    MacState->InputRecordingIndex = InputRecordingIndex;
-    char *Filename = "foo.hmi";
-    MacState->RecordingHandle = fopen(Filename, "w");
-    char *GameMemoryFilename = "game_memory.hmm";
-    DEBUGPlatformWriteEntireFile(Thread, GameMemoryFilename, MacState->PermanentStorageSize, MacState->GameMemoryBlock);
+    mac_replay_buffer *ReplayBuffer = MacGetReplayBuffer(MacState, InputRecordingIndex);
+    if (ReplayBuffer->MemoryBlock)
+    {
+        MacState->InputRecordingIndex = InputRecordingIndex;
+        char *Filename = "foo.hmi";
+        MacState->RecordingHandle = fopen(Filename, "w");
+        fseek(MacState->RecordingHandle, MacState->PermanentStorageSize, SEEK_SET);
+        memcpy(ReplayBuffer->MemoryBlock, MacState->GameMemoryBlock, MacState->PermanentStorageSize);
+        //char *GameMemoryFilename = "game_memory.hmm";
+        //DEBUGPlatformWriteEntireFile(Thread, GameMemoryFilename, MacState->PermanentStorageSize, MacState->GameMemoryBlock);
+    }
 }
 
 internal void
@@ -200,12 +214,18 @@ MacEndRecordingInput(mac_state *MacState)
 internal void
 MacBeginInputPlayback(thread_context *Thread, mac_state *MacState, int InputPlayingIndex)
 {
-    MacState->InputPlayingIndex = InputPlayingIndex;
-    char *Filename = "foo.hmi";
-    MacState->PlaybackHandle = fopen(Filename, "r");
-    char *GameMemoryFilename = "game_memory.hmm";
-    debug_read_file_result Result = DEBUGPlatformReadEntireFile(Thread, GameMemoryFilename);
-    MacState->GameMemoryBlock = Result.Contents;
+    mac_replay_buffer *ReplayBuffer = MacGetReplayBuffer(MacState, InputPlayingIndex);
+    if (ReplayBuffer->MemoryBlock)
+    {
+        MacState->InputPlayingIndex = InputPlayingIndex;
+        char *Filename = "foo.hmi";
+        MacState->PlaybackHandle = fopen(Filename, "r");
+        fseek(MacState->PlaybackHandle, MacState->PermanentStorageSize, SEEK_SET);
+        memcpy(MacState->GameMemoryBlock, ReplayBuffer->MemoryBlock, MacState->PermanentStorageSize);
+        /* char *GameMemoryFilename = "game_memory.hmm"; */
+        /* debug_read_file_result Result = DEBUGPlatformReadEntireFile(Thread, GameMemoryFilename); */
+        /* MacState->GameMemoryBlock = Result.Contents; */
+    }
 }
 
 internal void
@@ -1019,6 +1039,34 @@ int main(int argc, const char * argv[])
 		printf("mmap error: %d  %s", errno, strerror(errno));
         [NSException raise: @"Game Memory Not Allocated"
                      format: @"Failed to allocate transient storage"];
+    }
+
+    // TODO: (ted)  Make this use the full storage when the game starts using it.
+    for(int ReplayIndex = 0;
+        ReplayIndex < ArrayCount(MacState.ReplayBuffers);
+        ++ReplayIndex)
+    {
+        mac_replay_buffer *ReplayBuffer = &MacState.ReplayBuffers[ReplayIndex];
+        int FileDescriptor;
+        mode_t Mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+        char Filename[MAC_MAX_FILENAME_SIZE];
+        sprintf(Filename, "ReplayBuffer%d", ReplayIndex);
+        FileDescriptor = open(Filename, O_CREAT | O_RDWR, Mode);
+        int Result = truncate(Filename, GameMemory.PermanentStorageSize);
+
+        if (Result < 0)
+        {
+            // TODO: (ted)  Log This
+        }
+
+        ReplayBuffer->MemoryBlock = mmap(0, GameMemory.PermanentStorageSize,
+                                         PROT_READ | PROT_WRITE,
+                                         MAP_PRIVATE, FileDescriptor, 0);
+        if (ReplayBuffer->MemoryBlock)
+        {
+        } else {
+            // TODO: (casey)    Diagnostic
+        }
     }
 
     MacInitGameControllers(); 
