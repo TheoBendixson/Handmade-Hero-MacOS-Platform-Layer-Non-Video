@@ -32,6 +32,7 @@ struct mac_debug_time_marker
 
 struct mac_replay_buffer
 {
+    FILE *FileHandle;
     char ReplayFileName[MAC_MAX_FILENAME_SIZE];
     void *MemoryBlock;
 };

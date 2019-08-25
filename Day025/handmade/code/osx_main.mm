@@ -192,19 +192,15 @@ MacBeginRecordingInput(thread_context *Thread, mac_state *MacState, int InputRec
     if (ReplayBuffer->MemoryBlock)
     {
         MacState->InputRecordingIndex = InputRecordingIndex;
-        char *Filename = "foo.hmi";
-        MacState->RecordingHandle = fopen(Filename, "w");
+        MacState->RecordingHandle = ReplayBuffer->FileHandle;
         fseek(MacState->RecordingHandle, MacState->PermanentStorageSize, SEEK_SET);
         memcpy(ReplayBuffer->MemoryBlock, MacState->GameMemoryBlock, MacState->PermanentStorageSize);
-        //char *GameMemoryFilename = "game_memory.hmm";
-        //DEBUGPlatformWriteEntireFile(Thread, GameMemoryFilename, MacState->PermanentStorageSize, MacState->GameMemoryBlock);
     }
 }
 
 internal void
 MacEndRecordingInput(mac_state *MacState)
 {
-    fclose(MacState->RecordingHandle);
     MacState->InputRecordingIndex = 0;
 }
 
@@ -218,20 +214,15 @@ MacBeginInputPlayback(thread_context *Thread, mac_state *MacState, int InputPlay
     if (ReplayBuffer->MemoryBlock)
     {
         MacState->InputPlayingIndex = InputPlayingIndex;
-        char *Filename = "foo.hmi";
-        MacState->PlaybackHandle = fopen(Filename, "r");
+        MacState->PlaybackHandle = ReplayBuffer->FileHandle;
         fseek(MacState->PlaybackHandle, MacState->PermanentStorageSize, SEEK_SET);
         memcpy(MacState->GameMemoryBlock, ReplayBuffer->MemoryBlock, MacState->PermanentStorageSize);
-        /* char *GameMemoryFilename = "game_memory.hmm"; */
-        /* debug_read_file_result Result = DEBUGPlatformReadEntireFile(Thread, GameMemoryFilename); */
-        /* MacState->GameMemoryBlock = Result.Contents; */
     }
 }
 
 internal void
 MacEndInputPlayback(mac_state *MacState)
 {
-    fclose(MacState->PlaybackHandle);
     MacState->InputPlayingIndex = 0;
 }
 
@@ -601,16 +592,21 @@ void UpdateKeyboardControllerWith(thread_context *Thread, NSEvent *Event, mac_st
             }
             else if (Event.keyCode == LKeyCode)
             {
-                if (MacState->InputRecordingIndex == 0)
+                if (MacState->InputPlayingIndex == 0)
                 {
-                    MacBeginRecordingInput(Thread, MacState, 1);
-                    MacState->InputRecordingIndex = 1;
-                } else 
-                {
-                    MacEndRecordingInput(MacState);
-                    MacBeginInputPlayback(Thread, MacState, 1);
-                    MacState->InputRecordingIndex = 0;
-                    MacState->InputPlayingIndex = 1;
+                    if (MacState->InputRecordingIndex == 0)
+                    {
+                        MacBeginRecordingInput(Thread, MacState, 1);
+                        MacState->InputRecordingIndex = 1;
+                    } else 
+                    {
+                        MacEndRecordingInput(MacState);
+                        MacBeginInputPlayback(Thread, MacState, 1);
+                        MacState->InputRecordingIndex = 0;
+                        MacState->InputPlayingIndex = 1;
+                    }
+                } else {
+                    MacEndInputPlayback(MacState);
                 }
                 break;
             }
@@ -1062,6 +1058,8 @@ int main(int argc, const char * argv[])
         ReplayBuffer->MemoryBlock = mmap(0, GameMemory.PermanentStorageSize,
                                          PROT_READ | PROT_WRITE,
                                          MAP_PRIVATE, FileDescriptor, 0);
+        ReplayBuffer->FileHandle = fopen(Filename, "r+");
+        fseek(ReplayBuffer->FileHandle, MacState.PermanentStorageSize, SEEK_SET);
         if (ReplayBuffer->MemoryBlock)
         {
         } else {
@@ -1446,20 +1444,22 @@ int main(int argc, const char * argv[])
             uint64 FrameElapsed = EndOfFrame - LastCounter;
             uint64 FrameNanoseconds = FrameElapsed * globalPerfCountFrequency.numer / globalPerfCountFrequency.denom;
 
-            real32 MeasuredMillsecondsPerFrame = (real32)FrameNanoseconds * 1.0E-6f;
             real32 MeasuredSecondsPerFrame = (real32)FrameNanoseconds * 1.0E-9f;
+#if 0
+            real32 MeasuredMillsecondsPerFrame = (real32)FrameNanoseconds * 1.0E-6f;
             real32 MeasuredFramesPerSecond = 1.0f / MeasuredSecondsPerFrame;
 
             NSLog(@"Frames Per Second %f", MeasuredFramesPerSecond); 
             NSLog(@"Millseconds Per Frame %f", MeasuredMillsecondsPerFrame); 
+#endif
 
             FrameTime += MeasuredSecondsPerFrame;
             LastCounter = EndOfFrame;
 
 #if HANDMADE_INTERNAL
             // TODO (casey):    Current is wrong on the zeroeth index
-            MacDebugSyncDisplay(&Buffer, &SoundOutput, DebugTimeMarkerIndex, DebugTimeMarkers, 
-                                (DebugTimeMarkerIndex - 1), TargetSecondsPerFrame);
+            /* MacDebugSyncDisplay(&Buffer, &SoundOutput, DebugTimeMarkerIndex, DebugTimeMarkers, */ 
+            /*                     (DebugTimeMarkerIndex - 1), TargetSecondsPerFrame); */
 #endif
             MacRedrawBuffer(Window, &Buffer); 
             FlipWallClock = mach_absolute_time();
