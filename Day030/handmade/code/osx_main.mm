@@ -4,6 +4,7 @@
 // OSX Main
 
 #import <AppKit/AppKit.h>
+#import <QuartzCore/QuartzCore.h>
 #import <IOKit/hid/IOHIDLib.h>
 #import <AudioToolbox/AudioToolbox.h>
 #include <mach/mach_init.h>
@@ -204,9 +205,6 @@ MacEndRecordingInput(mac_state *MacState)
     MacState->InputRecordingIndex = 0;
 }
 
-// TODO: (ted)  Clean this up. It currently crashes when Running outside
-//              of the Xcode Debugger. That's probably fine for testing
-//              purposes, so it's no big deal.
 internal void
 MacBeginInputPlayback(thread_context *Thread, mac_state *MacState, int InputPlayingIndex)
 {
@@ -412,6 +410,7 @@ void MacRedrawBuffer(NSWindow *window, game_offscreen_buffer *Buffer) {
                                   hasAlpha: YES
                                   isPlanar: NO
                                   colorSpaceName: NSDeviceRGBColorSpace
+                                  bitmapFormat: NSBitmapFormatThirtyTwoBitLittleEndian
                                   bytesPerRow: Buffer->Pitch
                                   bitsPerPixel: Buffer->BytesPerPixel * 8] autorelease];
 
@@ -966,8 +965,8 @@ int main(int argc, const char * argv[])
 
     NSRect ScreenRect = [[NSScreen mainScreen] frame];
 
-    float GlobalRenderWidth = 1024;
-    float GlobalRenderHeight = 768;
+    float GlobalRenderWidth = 960;
+    float GlobalRenderHeight = 540;
 
     NSRect InitialFrame = NSMakeRect((ScreenRect.size.width - GlobalRenderWidth) * 0.5,
                                      (ScreenRect.size.height - GlobalRenderHeight) * 0.5,
@@ -977,14 +976,17 @@ int main(int argc, const char * argv[])
     NSWindow *Window = [[HandmadeKeyIgnoringWindow alloc] 
                          initWithContentRect: InitialFrame
                          styleMask: NSWindowStyleMaskTitled |
-                                    NSWindowStyleMaskClosable
-                         backing: NSBackingStoreBuffered
+                                    NSWindowStyleMaskClosable |
+                                    NSWindowStyleMaskResizable
+                                    backing: NSBackingStoreBuffered
                          defer: NO];    
 
     [Window setBackgroundColor: NSColor.blackColor];
     [Window setTitle: @"Handmade Hero"];
     [Window makeKeyAndOrderFront: nil];
     [Window setDelegate: MainWindowDelegate];
+    Window.contentView.layerContentsPlacement = NSViewLayerContentsPlacementCenter;
+    Window.contentView.layer.contentsGravity = kCAGravityCenter;
     Window.contentView.wantsLayer = YES;
 
     thread_context Thread = {};
@@ -1058,7 +1060,7 @@ int main(int argc, const char * argv[])
         char LocalFilename[MAC_MAX_FILENAME_SIZE];
         sprintf(LocalFilename, "Contents/Resources/ReplayBuffer%d", ReplayIndex);
         MacBuildAppPathFileName(&MacState, LocalFilename,
-                                   sizeof(Filename), Filename);
+                                sizeof(Filename), Filename);
         FileDescriptor = open(Filename, O_CREAT | O_RDWR, Mode);
         int Result = truncate(Filename, GameMemory.PermanentStorageSize);
 
@@ -1084,17 +1086,17 @@ int main(int argc, const char * argv[])
     mac_sound_output SoundOutput = {};
     MacInitSound(&SoundOutput);
 
-    game_input Input[2] = {};
-    game_input *NewInput = &Input[0];
-    game_input *OldInput = &Input[1];
-
-    int16 *Samples = (int16*)calloc(SoundOutput.SamplesPerSecond,
-                                    SoundOutput.BytesPerSample); 
-
     int MonitorRefreshHz = 60;
     uint32 GameUpdateHzInt = MonitorRefreshHz/2;
     real32 GameUpdateHz = (MonitorRefreshHz / 2.0f);
     real32 TargetSecondsPerFrame = 1.0f / (real32)GameUpdateHz;
+
+    game_input Input[2] = {};
+    game_input *NewInput = &Input[0];
+    game_input *OldInput = &Input[1];
+    
+    int16 *Samples = (int16*)calloc(SoundOutput.SamplesPerSecond,
+                                    SoundOutput.BytesPerSample); 
 
     // TODO: (ted)  Compute this variance and see what the lowest reasonable value is
     SoundOutput.SafetyBytes = ((SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample)/GameUpdateHzInt)/3;
@@ -1139,6 +1141,8 @@ int main(int argc, const char * argv[])
             }
         } while (Event != nil);
     
+        NewInput->dtForFrame = TargetSecondsPerFrame;
+
         NSPoint MouseP = Window.mouseLocationOutsideOfEventStream;
         NewInput->MouseX = (int32)MouseP.x;
         NewInput->MouseY = (int32)(GlobalRenderHeight - MouseP.y);
