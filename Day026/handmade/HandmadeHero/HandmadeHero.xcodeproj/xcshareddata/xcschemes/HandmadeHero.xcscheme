@@ -29,8 +29,6 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <Testables>
       </Testables>
-      <AdditionalOptions>
-      </AdditionalOptions>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -44,7 +42,7 @@
       allowLocationSimulation = "YES">
       <PathRunnable
          runnableDebuggingMode = "0"
-         FilePath = "/Users/theodorebendixson1/AppDevelopment/PersonalProjects/HandmadeHero/HandmadeGameTutorialsOSX/Day025/build/handmade.app">
+         FilePath = "/Users/theodorebendixson1/AppDevelopment/PersonalProjects/HandmadeHero/HandmadeGameTutorialsOSX/Day026/build/handmade.app">
       </PathRunnable>
       <MacroExpansion>
          <BuildableReference
@@ -55,8 +53,6 @@
             ReferencedContainer = "container:HandmadeHero.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
-      <AdditionalOptions>
-      </AdditionalOptions>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

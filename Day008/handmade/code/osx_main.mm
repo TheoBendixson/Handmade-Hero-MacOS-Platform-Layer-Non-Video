@@ -424,7 +424,7 @@ OSStatus circularBufferRenderCallback(void *inRefCon,
            region2Size);
 
     soundOutput.playCursor = (soundOutput.playCursor + length) % soundOutput.bufferSize;
-    soundOutput.writeCursor = (soundOutput.playCursor + 2048) % soundOutput.bufferSize;
+    //soundOutput.writeCursor = (soundOutput.playCursor + 2048) % soundOutput.bufferSize;
 
     return noErr;
 }
