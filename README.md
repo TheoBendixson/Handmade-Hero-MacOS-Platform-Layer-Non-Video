@@ -38,4 +38,9 @@ If you haven't already, check out [Handmade Hero on YouTube](https://www.youtube
 ## Support this work
 I have setup a [Patreon for Mac-related content to help people interested in building the Mac platform layer for Handmade Hero](https://www.patreon.com/tedbendixson). I also plan to cover slightly more advanced topics like rendering through Apple's graphics apis like Metal. Everything helps, and as a supporter, you can just ask me to cover some topic in a video and I'll make sure to address it.
 
-Thanks again for all of your support! This has been a fun learning experience thus far.
+## Where to find me
+🎮 [PLAY GAMES I HAVE MADE USING THIS GAME ENGINE](https://tedbendixson.itch.io/cove-kid)
+🐦 [TWITTER](https://twitter.com/TBendixson)
+📱 [ITUNES](https://apps.apple.com/us/developer/send-it-apps-llc/id1139954390)
+📄 [MEDIUM](https://theobendixson.medium.com)
+🦉 [WYZANT](https://www.wyzant.com/tutor/profile)
