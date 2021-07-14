@@ -44,3 +44,4 @@ I have setup a [Patreon for Mac-related content to help people interested in bui
 📱 [ITUNES](https://apps.apple.com/us/developer/send-it-apps-llc/id1139954390)
 📄 [MEDIUM](https://theobendixson.medium.com)
 🦉 [WYZANT](https://www.wyzant.com/tutor/profile)
+💵 [FIVERR](https://www.fiverr.com/tedbendixson)
