@@ -41,7 +41,7 @@ I have setup a [Patreon for Mac-related content to help people interested in bui
 ## Where to find me
 🎮 [PLAY GAMES I HAVE MADE USING THIS GAME ENGINE](https://tedbendixson.itch.io/cove-kid)
 🐦 [TWITTER](https://twitter.com/TBendixson)
-📱 [ITUNES](https://apps.apple.com/us/developer/send-it-apps-llc/id1139954390)
+📱 [ITUNES](https://apps.apple.com/us/developer/send-it-apps-llc/id1139954390)  
 📄 [MEDIUM](https://theobendixson.medium.com)
 🦉 [WYZANT](https://www.wyzant.com/tutor/profile)
 💵 [FIVERR](https://www.fiverr.com/tedbendixson)
